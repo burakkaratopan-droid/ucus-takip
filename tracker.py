@@ -101,12 +101,16 @@ def parse(html):
 
 def fetch(dep, ret, max_stops, attempts=3):
     q = build_query(dep, ret, max_stops)
+    err = None
     for i in range(attempts):
         try:
-            return parse(fetch_flights_html(q)), q.url()
+            options = parse(fetch_flights_html(q))
+            # Google ara sıra boş sonuç döndürüyor; birkaç kez daha dene.
+            if options or i == attempts - 1:
+                return options, q.url()
         except Exception as e:  # ağ hatası, engelleme, değişen sayfa yapısı
             err = e
-            time.sleep(5 * (i + 1) + random.random() * 3)
+        time.sleep(5 * (i + 1) + random.random() * 3)
     raise err
 
 
