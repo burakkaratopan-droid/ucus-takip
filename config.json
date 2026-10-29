@@ -1,0 +1,25 @@
+{
+  "origin": "IST",
+  "destination": "HND",
+  "currency": "TRY",
+  "adults": 1,
+  "min_days": 10,
+  "max_days": 15,
+  "connecting_threshold": 40000,
+  "holidays": [
+    {
+      "id": "ramazan-2027",
+      "name": "Ramazan Bayramı 2027",
+      "first_day": "2027-03-08",
+      "last_day": "2027-03-11",
+      "note": "Arife 8 Mart, bayram 9-11 Mart"
+    },
+    {
+      "id": "kurban-2027",
+      "name": "Kurban Bayramı 2027",
+      "first_day": "2027-05-15",
+      "last_day": "2027-05-19",
+      "note": "Arife 15 Mayıs, bayram 16-19 Mayıs"
+    }
+  ]
+}
