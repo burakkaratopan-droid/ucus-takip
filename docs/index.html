@@ -262,7 +262,7 @@ function renderList(){
 }
 
 function chart(c){
-  const W = 640, H = 200, P = { l: 56, r: 12, t: 12, b: 28 };
+  const W = Math.max(300, Math.min(1000, document.getElementById("detail").clientWidth - 34)), H = 200, P = { l: 56, r: 12, t: 12, b: 28 };
   const series = [["direct", "var(--direct)"], ["conn", "var(--conn)"]].map(([k, color]) => ({
     color, pts: c.history.filter(p => p[col(k)] != null).map(p => [new Date(DATA.runs[p[0]]).getTime(), p[col(k)]])
   })).filter(s => s.pts.length);
