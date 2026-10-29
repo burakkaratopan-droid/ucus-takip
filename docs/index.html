@@ -52,6 +52,7 @@ h2{font-size:16px;margin:0 0 4px}
 .heat td{text-align:center;border-radius:5px;padding:6px 2px;cursor:pointer;color:#fff;font-weight:500;min-width:42px}
 .heat td.empty{background:transparent;cursor:default}
 .heat td.na{background:var(--line);color:var(--ink3)}
+.heat td.old{opacity:.45}
 .heat td:hover{outline:2px solid var(--ink)}
 .legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink3);margin-top:8px}
 .legend i{display:block;width:120px;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--h0),var(--h1),var(--h2),var(--h3),var(--h4))}
@@ -67,6 +68,8 @@ h2{font-size:16px;margin:0 0 4px}
 .chg{font-size:12px;margin-left:4px}
 .up{color:var(--bad)}.down{color:var(--good)}
 .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;background:var(--good-bg);color:var(--good);font-weight:500;margin-left:4px}
+.tag.old{background:var(--line);color:var(--ink2)}
+.tag.low{background:var(--accent-bg);color:var(--accent)}
 .more{display:block;width:100%;border:0;border-top:1px solid var(--line);background:none;color:var(--ink2);font:inherit;font-size:13px;padding:10px;cursor:pointer}
 .more:hover{background:var(--bg)}
 #detail{display:none}
@@ -128,7 +131,7 @@ footer{font-size:12px;color:var(--ink3);margin-top:32px;line-height:1.6}
   </section>
 
   <footer>
-    Fiyatlar Google Flights'tan günde üç kez otomatik çekilir ve gidiş-dönüş toplam, tek yetişkin içindir. Satın almadan önce fiyatı havayolu sitesinde doğrulayın.<br>
+    Fiyatlar Google Flights'tan günde üç kez otomatik çekilir ve gidiş-dönüş toplam, tek yetişkin içindir. En ucuz 5 aktarmalı kombinasyon her taramada ayrıca bavul dahil ve tek bilet şartıyla kontrol edilir. Soluk görünen fiyatlar son taramada gelmeyen, son bilinen fiyatlardır. Satın almadan önce fiyatı havayolu sitesinde doğrulayın.<br>
     Bayram tarihleri Diyanet takvimine göredir. Kombinasyonlar arife dahil tüm bayram günlerini kapsar.
   </footer>
 </div>
@@ -169,6 +172,25 @@ function change(c, kind){
   if (a === b) return null;
   return { diff: b - a, at: DATA.runs[h[h.length - 1][0]] };
 }
+const isStale = (c, kind) => !!(c.stale && c.stale[kind === "direct" ? "direct" : "connecting"]);
+function lowOf(c, kind){
+  const vals = c.history.map(p => p[col(kind)]).filter(v => v != null);
+  return vals.length ? { low: Math.min(...vals), distinct: new Set(vals).size } : null;
+}
+function badges(c, kind){
+  let out = "";
+  if (isStale(c, kind)) out += `<span class="tag old" title="Son taramada Google sonuç döndürmedi; son bilinen fiyat gösteriliyor">eski</span>`;
+  const l = lowOf(c, kind), p = priceOf(c, kind);
+  if (l && l.distinct > 1 && p === l.low) out += `<span class="tag low" title="Takip başladığından beri görülen en düşük fiyat">en düşük</span>`;
+  return out;
+}
+function safeHtml(c){
+  const s = c.safe, cn = c.connecting && c.connecting[0];
+  if (!s || s.run !== c.checked || !cn) return "";
+  return s.price === cn.price
+    ? `<div class="d2" style="color:var(--good)">✓ Bavul dahil, tek bilet</div>`
+    : `<div class="d2">Bavul dahil, tek bilet: <b>${TL(s.price)}</b></div>`;
+}
 function chgHtml(ch){
   if (!ch) return "";
   const cls = ch.diff < 0 ? "down" : "up";
@@ -184,7 +206,7 @@ function combos(){
 function renderMeta(){
   const r = DATA.last_run;
   document.getElementById("meta").innerHTML =
-    `Son tarama <b>${ago(r.at)}</b> · ${new Date(r.at).toLocaleString("tr-TR", {dateStyle:"medium", timeStyle:"short"})}<br>${r.ok}/${r.total} kombinasyon güncellendi · toplam ${DATA.runs.length} tarama`;
+    `Son tarama <b>${ago(r.at)}</b> · ${new Date(r.at).toLocaleString("tr-TR", {dateStyle:"medium", timeStyle:"short"})}<br>${r.ok}/${r.total} kombinasyon güncellendi${r.stale ? ` (${r.stale} tanesi eski fiyatla)` : ""} · toplam ${DATA.runs.length} tarama`;
 }
 
 function renderCards(){
@@ -224,7 +246,8 @@ function renderHeat(){
       if (!c) return `<td class="empty"></td>`;
       const p = priceOf(c, state.kind);
       if (!p) return `<td class="na" onclick="select('${c.key}')" title="Sonuç yok">–</td>`;
-      return `<td style="background:${color(p, min, max)}" onclick="select('${c.key}')" title="${fmtD(c.dep)} – ${fmtD(c.ret)} · ${TL(p)}">${Math.round(p / 1000)}k</td>`;
+      const old = isStale(c, state.kind);
+      return `<td class="${old ? "old" : ""}" style="background:${color(p, min, max)}" onclick="select('${c.key}')" title="${fmtD(c.dep)} – ${fmtD(c.ret)} · ${TL(p)}${old ? " · son bilinen fiyat" : ""}">${Math.round(p / 1000)}k</td>`;
     }).join("") + `</tr>`).join("");
     return `<div class="card"><div style="font-weight:600;margin-bottom:2px">${h.name}</div><div class="hint" style="margin-bottom:8px">${h.note}</div>
       <table><thead><tr><th class="row">Gidiş</th>${lens.map(n => `<th>${n}g</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -253,16 +276,17 @@ function renderList(){
       const cn = c.connecting && c.connecting[0];
       return `<div class="row ${state.selected === c.key ? "sel" : ""}" onclick="select('${c.key}')">
         <span><div class="d1">${fmtD(c.dep)} – ${fmtD(c.ret)}</div><div class="d2">${c.days} gün · ${c.holiday.startsWith("ramazan") ? "Ramazan" : "Kurban"}</div></span>
-        <span><span class="price">${TL(c.direct && c.direct.price)}</span>${chgHtml(change(c, "direct"))}</span>
-        <span><span class="price">${TL(cn && cn.price)}</span>${chgHtml(change(c, "conn"))}${cn && cn.price <= th ? `<span class="tag">40k altı</span>` : ""}
-          <div class="d2">${cn ? cn.airlines.join(", ") + " · " + cn.via.join(", ") : ""}</div></span>
+        <span><span class="price">${TL(c.direct && c.direct.price)}</span>${chgHtml(change(c, "direct"))}${badges(c, "direct")}</span>
+        <span><span class="price">${TL(cn && cn.price)}</span>${chgHtml(change(c, "conn"))}${cn && cn.price <= th ? `<span class="tag">40k altı</span>` : ""}${badges(c, "conn")}
+          <div class="d2">${cn ? cn.airlines.join(", ") + " · " + cn.via.join(", ") : ""}</div>${safeHtml(c)}</span>
         <span class="spark">${spark(c, k)}</span></div>`;
     }).join("") +
     (cs.length > 20 ? `<button class="more" onclick="state.showAll=!state.showAll;renderList()">${state.showAll ? "Daha az göster" : `Tümünü göster (${cs.length})`}</button>` : "");
 }
 
 function chart(c){
-  const W = Math.max(300, Math.min(1000, document.getElementById("detail").clientWidth - 34)), H = 200, P = { l: 56, r: 12, t: 12, b: 28 };
+  const avail = document.querySelector(".wrap").clientWidth - 66;
+  const W = avail > 0 ? Math.max(300, Math.min(1000, avail)) : 640, H = 200, P = { l: 56, r: 12, t: 12, b: 28 };
   const series = [["direct", "var(--direct)"], ["conn", "var(--conn)"]].map(([k, color]) => ({
     color, pts: c.history.filter(p => p[col(k)] != null).map(p => [new Date(DATA.runs[p[0]]).getTime(), p[col(k)]])
   })).filter(s => s.pts.length);
@@ -304,9 +328,11 @@ function renderDetail(){
     <div style="display:flex;gap:16px;font-size:12px;color:var(--ink2)"><span><span class="dot" style="background:var(--direct)"></span> Aktarmasız</span><span><span class="dot" style="background:var(--conn)"></span> En ucuz tek aktarmalı</span></div>
     ${chart(c)}
     <div class="det-grid">
-      <div><b>Aktarmasız</b>${c.direct ? optHtml(c.direct) : `<p class="hint">Bu tarihlerde aktarmasız sonuç yok.</p>`}</div>
-      <div><b>Tek aktarmalı (en ucuz 3)</b>${(c.connecting || []).length ? c.connecting.map(optHtml).join("") : `<p class="hint">Sonuç yok.</p>`}
-        <p class="hint" style="margin-top:8px">${(c.connecting || []).some(o => o.price <= th) ? "40.000 TL altında seçenek var." : "40.000 TL altında seçenek yok."}</p></div>
+      <div><b>Aktarmasız</b> ${badges(c, "direct")}${c.direct ? optHtml(c.direct) : `<p class="hint">Bu tarihlerde aktarmasız sonuç yok.</p>`}
+        ${lowOf(c, "direct") ? `<p class="hint" style="margin-top:8px">Takip başladığından beri en düşük: ${TL(lowOf(c, "direct").low)}</p>` : ""}</div>
+      <div><b>Tek aktarmalı (en ucuz 3)</b> ${badges(c, "conn")}${(c.connecting || []).length ? c.connecting.map(optHtml).join("") : `<p class="hint">Sonuç yok.</p>`}
+        ${c.safe ? `<div style="margin-top:12px"><b>Bavul dahil, tek bilet</b> <span class="d2">(kontrol: ${ago(DATA.runs[c.safe.run])})</span>${optHtml(c.safe)}</div>` : ""}
+        <p class="hint" style="margin-top:8px">${(c.connecting || []).some(o => o.price <= th) ? "40.000 TL altında seçenek var." : "40.000 TL altında seçenek yok."}${lowOf(c, "conn") ? ` Takip başladığından beri en düşük: ${TL(lowOf(c, "conn").low)}.` : ""}</p></div>
     </div>
     <div class="links"><a href="${c.urls.direct}" target="_blank" rel="noopener">Aktarmasızları Google Flights'ta aç ↗</a><a href="${c.urls.connecting}" target="_blank" rel="noopener">Aktarmalıları Google Flights'ta aç ↗</a></div>`;
 }
@@ -316,6 +342,8 @@ function select(key){
   renderDetail(); renderList();
   if (key) document.getElementById("detail").scrollIntoView({ behavior: "smooth", block: "start" });
 }
+
+let resizeT; window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(renderDetail, 200); });
 
 function renderAll(){ renderCards(); renderHeat(); renderList(); renderDetail(); }
 

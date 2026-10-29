@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: track
@@ -25,6 +26,8 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python tracker.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Sonuçları kaydet
         run: |
           git config user.name "fiyat-botu"
