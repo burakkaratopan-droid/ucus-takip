@@ -156,6 +156,8 @@ footer{font-size:12px;color:var(--ink3);margin-top:32px;line-height:1.6}
         <input id="f-maxd" type="number" inputmode="numeric" min="0" step="1000" placeholder="Sınır yok"></label>
       <label>Aktarmalı en fazla (TL)
         <input id="f-maxc" type="number" inputmode="numeric" min="0" step="1000" placeholder="Sınır yok"></label>
+      <label>Bayram
+        <select id="f-hol"></select></label>
       <label>Gün
         <select id="f-days"><option value="">Tümü</option></select></label>
       <button class="reset" id="f-reset" type="button">Temizle</button>
@@ -365,7 +367,7 @@ function setupListFilters(){
   document.getElementById("f-reset").onclick = () => {
     LIST = { sort: "d-asc", maxd: "", maxc: "", days: "" };
     for (const [k, id] of Object.entries(fields)) document.getElementById(id).value = LIST[k];
-    saveList(); renderList();
+    saveList(); setHoliday("all");
   };
 }
 
@@ -436,7 +438,16 @@ function setupFilters(){
   const hs = [["all", "Tümü"], ...DATA.config.holidays.map(h => [h.id, h.name.replace(/ Bayramı \d+/, "")])];
   const el = document.getElementById("f-holiday");
   el.innerHTML = hs.map(([v, n]) => `<button data-v="${v}" aria-pressed="${v === state.holiday}">${n}</button>`).join("");
-  el.onclick = e => { const v = e.target.dataset.v; if (!v) return; state.holiday = v; el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v)); renderAll(); };
+  const sel = document.getElementById("f-hol");
+  sel.innerHTML = hs.map(([v, n]) => `<option value="${v}">${n}</option>`).join("");
+  sel.value = state.holiday;
+  window.setHoliday = v => {
+    state.holiday = v; state.showAll = false;
+    el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v));
+    sel.value = v; renderAll();
+  };
+  el.onclick = e => { const v = e.target.dataset.v; if (v) setHoliday(v); };
+  sel.addEventListener("input", () => setHoliday(sel.value));
   const k = document.getElementById("f-kind");
   k.onclick = e => { const v = e.target.dataset.v; if (!v) return; state.kind = v; k.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v));
     LIST.sort = v === "direct" ? "d-asc" : "c-asc"; document.getElementById("f-sort").value = LIST.sort; saveList(); renderAll(); };
