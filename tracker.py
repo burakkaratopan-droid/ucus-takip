@@ -164,14 +164,19 @@ def notify(alerts):
     if not alerts:
         return
     title = "Fiyat alarmı: " + alerts[0]["title"] + (f" (+{len(alerts) - 1})" if len(alerts) > 1 else "")
-    body = "\n".join(f"- {a['text']}" for a in alerts) + f"\n\n[Paneli aç]({PANEL_URL})"
     token, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPOSITORY")
+    owner = os.environ.get("GITHUB_REPOSITORY_OWNER")
+    # Sahibi etiketleyip issue'yu ona atıyoruz: GitHub bu iki durumda izleme ayarından
+    # bağımsız olarak e-posta gönderir.
+    mention = f"@{owner} " if owner else ""
+    body = (f"{mention}yeni fiyat alarmı:\n\n" + "\n".join(f"- {a['text']}" for a in alerts)
+            + f"\n\n[Paneli aç]({PANEL_URL})")
     if not (token and repo):
         print("ALARM (GitHub dışında, issue açılmadı):\n" + title + "\n" + body)
         return
     req = urllib.request.Request(
         f"https://api.github.com/repos/{repo}/issues",
-        data=json.dumps({"title": title, "body": body}).encode(),
+        data=json.dumps({"title": title, "body": body, "assignees": [owner] if owner else []}).encode(),
         headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
         method="POST",
     )
@@ -299,4 +304,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if "--test-alarm" in sys.argv:
+        notify([{"title": "test", "text": "Bu bir test alarmıdır. Bu e-postayı aldıysan bildirimler çalışıyor."}])
+    else:
+        main()
