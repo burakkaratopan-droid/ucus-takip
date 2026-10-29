@@ -53,6 +53,7 @@ h2{font-size:16px;margin:0 0 4px}
 .heat td.empty{background:transparent;cursor:default}
 .heat td.na{background:var(--line);color:var(--ink3)}
 .heat td.old{opacity:.45}
+.heat .sm{display:none}
 .heat td:hover{outline:2px solid var(--ink)}
 .legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink3);margin-top:8px}
 .legend i{display:block;width:120px;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--h0),var(--h1),var(--h2),var(--h3),var(--h4))}
@@ -60,6 +61,15 @@ h2{font-size:16px;margin:0 0 4px}
 .row{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.5fr) 72px;gap:12px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);cursor:pointer;font-variant-numeric:tabular-nums}
 .row:first-child{border-top:0}
 .row.head{cursor:default;font-size:12px;color:var(--ink3);background:var(--bg)}
+.row.head button{all:unset;cursor:pointer;color:inherit}
+.row.head button:hover,.row.head button.on{color:var(--ink)}
+.filters{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;margin-bottom:12px}
+.filters label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink2)}
+.filters select,.filters input{font:inherit;font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;height:36px}
+.filters input{width:130px}
+.filters input:focus,.filters select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.filters .reset{border:1px solid var(--line);background:none;color:var(--ink2);font:inherit;font-size:13px;border-radius:8px;padding:0 12px;height:36px;cursor:pointer}
+.filters .reset:hover{background:var(--card);color:var(--ink)}
 .row:not(.head):hover{background:var(--bg)}
 .row.sel{background:var(--accent-bg)}
 .d1{font-weight:500}
@@ -87,6 +97,11 @@ footer{font-size:12px;color:var(--ink3);margin-top:32px;line-height:1.6}
 @media (max-width:640px){
   .row{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr);padding:10px 12px}
   .row .spark{display:none}
+  .heat .lg{display:none}.heat .sm{display:inline}
+  .heat .card{padding:10px}
+  .heat table{border-spacing:2px;font-size:11px}
+  .heat td{min-width:0;padding:5px 0}
+  .heat th{padding:2px 1px}
   .meta{text-align:left}
   .card .val{font-size:22px}
 }
@@ -125,8 +140,26 @@ footer{font-size:12px;color:var(--ink3);margin-top:32px;line-height:1.6}
   </section>
 
   <section>
-    <h2>En ucuzdan pahalıya</h2>
+    <h2>Tüm kombinasyonlar</h2>
     <p class="hint" id="list-hint"></p>
+    <div class="filters">
+      <label>Sırala
+        <select id="f-sort">
+          <option value="d-asc">Aktarmasız: ucuzdan pahalıya</option>
+          <option value="d-desc">Aktarmasız: pahalıdan ucuza</option>
+          <option value="c-asc">Aktarmalı: ucuzdan pahalıya</option>
+          <option value="c-desc">Aktarmalı: pahalıdan ucuza</option>
+          <option value="date">Gidiş tarihine göre</option>
+          <option value="days">Gün sayısına göre (kısa → uzun)</option>
+        </select></label>
+      <label>Aktarmasız en fazla (TL)
+        <input id="f-maxd" type="number" inputmode="numeric" min="0" step="1000" placeholder="Sınır yok"></label>
+      <label>Aktarmalı en fazla (TL)
+        <input id="f-maxc" type="number" inputmode="numeric" min="0" step="1000" placeholder="Sınır yok"></label>
+      <label>Gün
+        <select id="f-days"><option value="">Tümü</option></select></label>
+      <button class="reset" id="f-reset" type="button">Temizle</button>
+    </div>
     <div class="list" id="list"></div>
   </section>
 
@@ -152,6 +185,8 @@ const ago = iso => {
 const store = { get(k){ try { return localStorage.getItem(k); } catch { return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
 
 let DATA, state = { holiday: "all", kind: "direct", selected: null, showAll: false };
+let LIST = { sort: "d-asc", maxd: "", maxc: "", days: "" };
+try { Object.assign(LIST, JSON.parse(store.get("list") || "{}")); } catch {}
 
 function applyTheme(v){
   if (v === "auto") document.documentElement.removeAttribute("data-theme");
@@ -241,7 +276,7 @@ function renderHeat(){
   document.getElementById("heat").innerHTML = holidays.map(h => {
     const cs = all.filter(c => c.holiday === h.id);
     const deps = [...new Set(cs.map(c => c.dep))].sort();
-    const rows = deps.map(dep => `<tr><th class="row">${fmtDw(dep)}</th>` + lens.map(n => {
+    const rows = deps.map(dep => `<tr><th class="row"><span class="lg">${fmtDw(dep)}</span><span class="sm">${fmtD(dep)}</span></th>` + lens.map(n => {
       const c = cs.find(c => c.dep === dep && c.days === n);
       if (!c) return `<td class="empty"></td>`;
       const p = priceOf(c, state.kind);
@@ -263,15 +298,45 @@ function spark(c, kind){
   return `<svg width="64" height="18"><polyline points="${pts}" fill="none" stroke="${stroke}" stroke-width="1.5"/></svg>`;
 }
 
+const SORTS = {
+  "d-asc": [c => priceOf(c, "direct"), 1], "d-desc": [c => priceOf(c, "direct"), -1],
+  "c-asc": [c => priceOf(c, "conn"), 1], "c-desc": [c => priceOf(c, "conn"), -1],
+  "date": [c => d(c.dep).getTime() + c.days, 1], "days": [c => c.days * 1e13 + d(c.dep).getTime(), 1],
+};
+const SORT_LABEL = { "d-asc": "aktarmasız fiyata göre (ucuz → pahalı)", "d-desc": "aktarmasız fiyata göre (pahalı → ucuz)",
+  "c-asc": "aktarmalı fiyata göre (ucuz → pahalı)", "c-desc": "aktarmalı fiyata göre (pahalı → ucuz)",
+  "date": "gidiş tarihine göre", "days": "gün sayısına göre" };
+
+function listRows(){
+  const maxd = Number(LIST.maxd) || null, maxc = Number(LIST.maxc) || null, days = Number(LIST.days) || null;
+  const [key, dir] = SORTS[LIST.sort] || SORTS["d-asc"];
+  return combos()
+    .filter(c => !maxd || (priceOf(c, "direct") && priceOf(c, "direct") <= maxd))
+    .filter(c => !maxc || (priceOf(c, "conn") && priceOf(c, "conn") <= maxc))
+    .filter(c => !days || c.days === days)
+    // Fiyatı olmayanlar her zaman sona
+    .sort((a, b) => { const x = key(a), y = key(b); if (x == null) return 1; if (y == null) return -1; return (x - y) * dir; });
+}
+
+function headBtn(label, asc, desc){
+  const on = LIST.sort === asc || LIST.sort === desc;
+  const arrow = LIST.sort === asc ? " ↑" : LIST.sort === desc ? " ↓" : "";
+  const next = LIST.sort === asc && desc ? desc : asc;
+  return `<button class="${on ? "on" : ""}" onclick="setSort('${next}')" title="Sırala">${label}${arrow}</button>`;
+}
+
 function renderList(){
   const th = DATA.config.connecting_threshold;
-  const cs = combos().sort((a, b) => (priceOf(a, state.kind) || 9e9) - (priceOf(b, state.kind) || 9e9));
+  const all = combos().length;
+  const cs = listRows();
   const shown = state.showAll ? cs : cs.slice(0, 20);
-  const k = state.kind;
+  const k = LIST.sort.startsWith("c") ? "conn" : "direct";
+  const filtered = cs.length !== all;
   document.getElementById("list-hint").textContent =
-    `${cs.length} kombinasyon, ${k === "direct" ? "aktarmasız" : "tek aktarmalı"} fiyata göre sıralı.`;
+    `${filtered ? `${all} kombinasyondan ${cs.length} tanesi gösteriliyor` : `${all} kombinasyon`}, ${SORT_LABEL[LIST.sort]} sıralı.`;
   document.getElementById("list").innerHTML =
-    `<div class="row head"><span>Tarihler</span><span>Aktarmasız</span><span>Tek aktarmalı</span><span class="spark">Eğilim</span></div>` +
+    `<div class="row head"><span>${headBtn("Tarihler", "date")}</span><span>${headBtn("Aktarmasız", "d-asc", "d-desc")}</span><span>${headBtn("Tek aktarmalı", "c-asc", "c-desc")}</span><span class="spark">Eğilim</span></div>` +
+    (cs.length ? "" : `<div class="empty-state">Bu filtrelere uyan kombinasyon yok. Fiyat sınırını yükseltmeyi dene.</div>`) +
     shown.map(c => {
       const cn = c.connecting && c.connecting[0];
       return `<div class="row ${state.selected === c.key ? "sel" : ""}" onclick="select('${c.key}')">
@@ -282,6 +347,26 @@ function renderList(){
         <span class="spark">${spark(c, k)}</span></div>`;
     }).join("") +
     (cs.length > 20 ? `<button class="more" onclick="state.showAll=!state.showAll;renderList()">${state.showAll ? "Daha az göster" : `Tümünü göster (${cs.length})`}</button>` : "");
+}
+
+function saveList(){ store.set("list", JSON.stringify(LIST)); }
+function setSort(v){ LIST.sort = v; document.getElementById("f-sort").value = v; saveList(); renderList(); }
+
+function setupListFilters(){
+  const { min_days, max_days } = DATA.config;
+  const days = document.getElementById("f-days");
+  for (let n = min_days; n <= max_days; n++) days.insertAdjacentHTML("beforeend", `<option value="${n}">${n} gün</option>`);
+  const fields = { sort: "f-sort", maxd: "f-maxd", maxc: "f-maxc", days: "f-days" };
+  for (const [k, id] of Object.entries(fields)) {
+    const el = document.getElementById(id);
+    el.value = LIST[k];
+    el.addEventListener("input", () => { LIST[k] = el.value; state.showAll = false; saveList(); renderList(); });
+  }
+  document.getElementById("f-reset").onclick = () => {
+    LIST = { sort: "d-asc", maxd: "", maxc: "", days: "" };
+    for (const [k, id] of Object.entries(fields)) document.getElementById(id).value = LIST[k];
+    saveList(); renderList();
+  };
 }
 
 function chart(c){
@@ -353,11 +438,12 @@ function setupFilters(){
   el.innerHTML = hs.map(([v, n]) => `<button data-v="${v}" aria-pressed="${v === state.holiday}">${n}</button>`).join("");
   el.onclick = e => { const v = e.target.dataset.v; if (!v) return; state.holiday = v; el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v)); renderAll(); };
   const k = document.getElementById("f-kind");
-  k.onclick = e => { const v = e.target.dataset.v; if (!v) return; state.kind = v; k.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v)); renderAll(); };
+  k.onclick = e => { const v = e.target.dataset.v; if (!v) return; state.kind = v; k.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v));
+    LIST.sort = v === "direct" ? "d-asc" : "c-asc"; document.getElementById("f-sort").value = LIST.sort; saveList(); renderAll(); };
 }
 
 fetch("data.json", { cache: "no-store" }).then(r => r.json()).then(j => {
-  DATA = j; setupFilters(); renderMeta(); renderAll();
+  DATA = j; setupFilters(); setupListFilters(); renderMeta(); renderAll();
 }).catch(() => {
   document.getElementById("meta").textContent = "";
   document.getElementById("list").innerHTML = `<div class="empty-state">Henüz veri yok. İlk tarama tamamlanınca burada görünecek.</div>`;
