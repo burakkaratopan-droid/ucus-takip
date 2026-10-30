@@ -351,7 +351,7 @@ function renderList(){
         <span><div class="d1">${fmtD(c.dep)} – ${fmtD(c.ret)}</div><div class="d2">${destOf(c)} · ${c.days} gün · ${c.holiday.startsWith("ramazan") ? "Ramazan" : "Kurban"}</div></span>
         <span><span class="price">${TL(c.direct && c.direct.price)}</span>${chgHtml(change(c, "direct"))}${badges(c, "direct")}</span>
         <span><span class="price">${TL(cn && cn.price)}</span>${chgHtml(change(c, "conn"))}${cn && cn.price <= th ? `<span class="tag">40k altı</span>` : ""}${badges(c, "conn")}
-          <div class="d2">${cn ? cn.airlines.join(", ") + " · " + cn.via.join(", ") : ""}</div>${safeHtml(c)}</span>
+          <div class="d2">${cn ? cn.airlines.join(", ") + " · " + cn.via.join(", ") : ""}</div>${cn && cn.minutes ? `<div class="d2">${Math.floor(cn.minutes / 60)} sa ${cn.minutes % 60} dk</div>` : ""}</span>
         <span class="spark">${spark(c, k)}</span></div>`;
     }).join("") +
     (cs.length > 20 ? `<button class="more" onclick="state.showAll=!state.showAll;renderList()">${state.showAll ? "Daha az göster" : `Tümünü göster (${cs.length})`}</button>` : "");
