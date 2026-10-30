@@ -166,7 +166,6 @@ def compact_option(o):
     }
 
 
-SAFE_CHECKS = 5  # her taramada bagajlı/tek bilet kontrolü yapılacak en ucuz aktarmalı kombinasyon sayısı
 DIRECT_LOW_STEP = 1000  # aktarmasız "yeni en düşük" alarmı için gereken en az düşüş (TL)
 PANEL_URL = "https://burakkaratopan-droid.github.io/ucus-takip/"
 
@@ -264,23 +263,6 @@ def main():
         print(f"[{n}/{len(combos)}] {key} aktarmasız={point[1]} aktarmalı={point[2]}"
               + (f" (eski: {', '.join(stale)})" if stale else ""))
 
-    # En ucuz aktarmalılar için bavul dahil + tek bilet kontrolü
-    fresh = [(k, c) for k, c in data["combos"].items()
-             if c.get("checked") == run_idx and c.get("connecting") and not c["stale"].get("connecting")]
-    fresh.sort(key=lambda kc: kc[1]["connecting"][0]["price"])
-    for key, entry in fresh[:SAFE_CHECKS]:
-        dep, ret = date.fromisoformat(entry["dep"]), date.fromisoformat(entry["ret"])
-        try:
-            time.sleep(1 + random.random() * 2)
-            opts, url = fetch(entry["dest"], dep, ret, 1, safe=True)
-        except Exception as e:
-            print(f"bagajlı kontrol {key} HATA: {e}", file=sys.stderr)
-            continue
-        best = next((o for o in opts if len(o["legs"]) == 2 and short_enough(o)), None)
-        if best:
-            entry["safe"] = {**compact_option(best), "run": run_idx, "url": url}
-            print(f"bagajlı kontrol {key}: {best['price']} (normal {entry['connecting'][0]['price']})")
-
     # Alarmlar
     alerts = []
     for key, entry in data["combos"].items():
@@ -291,14 +273,11 @@ def main():
         if price <= threshold and (alerted is None or price < alerted):
             entry["alerted_conn"] = price
             o = entry["connecting"][0]
-            safe = entry.get("safe")
-            safe_txt = (f" Bavul dahil, tek bilet: {tl(safe['price'])}."
-                        if safe and safe.get("run") == run_idx else "")
             alerts.append({
                 "title": f"{tl(price)} aktarmalı ({entry['dest']})",
                 "text": f"IST ⇄ {entry['dest']} {entry['dep']} → {entry['ret']} ({entry['days']} gün): {tl(price)}, "
                         f"{', '.join(o['airlines'])} · {', '.join(o['via'])} aktarmalı."
-                        f"{safe_txt} [Google Flights]({entry['urls']['connecting']})",
+                        f" [Google Flights]({entry['urls']['connecting']})",
             })
     lows = [(c["direct"]["price"], c) for c in data["combos"].values()
             if c.get("checked") == run_idx and c.get("direct") and not c["stale"].get("direct")]

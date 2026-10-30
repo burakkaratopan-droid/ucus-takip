@@ -167,7 +167,7 @@ footer{font-size:12px;color:var(--ink3);margin-top:32px;line-height:1.6}
   </section>
 
   <footer>
-    Fiyatlar Google Flights'tan günde üç kez otomatik çekilir ve gidiş-dönüş toplam, tek yetişkin içindir. Aktarmalılarda sadece gidişi 18 saatin altında olan uçuşlar gösterilir. En ucuz 5 aktarmalı kombinasyon her taramada ayrıca bavul dahil ve tek bilet şartıyla kontrol edilir. Soluk görünen fiyatlar son taramada gelmeyen, son bilinen fiyatlardır. Satın almadan önce fiyatı havayolu sitesinde doğrulayın.<br>
+    Fiyatlar Google Flights'tan günde üç kez otomatik çekilir ve gidiş-dönüş toplam, tek yetişkin içindir. Aktarmalılarda sadece gidişi 18 saatin altında olan uçuşlar gösterilir. Soluk görünen fiyatlar son taramada gelmeyen, son bilinen fiyatlardır. Satın almadan önce fiyatı havayolu sitesinde doğrulayın.<br>
     Bayram tarihleri Diyanet takvimine göredir. Kombinasyonlar arife dahil tüm bayram günlerini kapsar.
   </footer>
 </div>
@@ -223,13 +223,6 @@ function badges(c, kind){
   const l = lowOf(c, kind), p = priceOf(c, kind);
   if (l && l.distinct > 1 && p === l.low) out += `<span class="tag low" title="Takip başladığından beri görülen en düşük fiyat">en düşük</span>`;
   return out;
-}
-function safeHtml(c){
-  const s = c.safe, cn = c.connecting && c.connecting[0];
-  if (!s || s.run !== c.checked || !cn) return "";
-  return s.price === cn.price
-    ? `<div class="d2" style="color:var(--good)">✓ Bavul dahil, tek bilet</div>`
-    : `<div class="d2">Bavul dahil, tek bilet: <b>${TL(s.price)}</b></div>`;
 }
 function chgHtml(ch){
   if (!ch) return "";
@@ -424,7 +417,6 @@ function renderDetail(){
       <div><b>Aktarmasız</b> ${badges(c, "direct")}${c.direct ? optHtml(c.direct) : `<p class="hint">Bu tarihlerde aktarmasız sonuç yok.</p>`}
         ${lowOf(c, "direct") ? `<p class="hint" style="margin-top:8px">Takip başladığından beri en düşük: ${TL(lowOf(c, "direct").low)}</p>` : ""}</div>
       <div><b>Tek aktarmalı (en ucuz 3)</b> ${badges(c, "conn")}${(c.connecting || []).length ? c.connecting.map(optHtml).join("") : `<p class="hint">Sonuç yok.</p>`}
-        ${c.safe ? `<div style="margin-top:12px"><b>Bavul dahil, tek bilet</b> <span class="d2">(kontrol: ${ago(DATA.runs[c.safe.run])})</span>${optHtml(c.safe)}</div>` : ""}
         <p class="hint" style="margin-top:8px">${(c.connecting || []).some(o => o.price <= th) ? "40.000 TL altında seçenek var." : "40.000 TL altında seçenek yok."}${lowOf(c, "conn") ? ` Takip başladığından beri en düşük: ${TL(lowOf(c, "conn").low)}.` : ""}</p></div>
     </div>
     <div class="links"><a href="${c.urls.direct}" target="_blank" rel="noopener">Aktarmasızları Google Flights'ta aç ↗</a><a href="${c.urls.connecting}" target="_blank" rel="noopener">Aktarmalıları Google Flights'ta aç ↗</a></div>`;
