@@ -129,8 +129,14 @@ def fetch(dest, dep, ret, max_stops, safe=False, attempts=3):
 
 def summarize(direct_opts, conn_opts):
     direct = next((o for o in direct_opts if len(o["legs"]) == 1), None)
-    conn = [o for o in conn_opts if len(o["legs"]) == 2]
+    conn = [o for o in conn_opts if len(o["legs"]) == 2 and short_enough(o)]
     return direct, conn[:3]
+
+
+def short_enough(o):
+    """Gidiş yolculuk süresi (aktarma beklemesi dahil) sınırın altında mı? Süre bilinmiyorsa eler."""
+    limit = CONFIG.get("max_connecting_hours")
+    return not limit or (o.get("minutes") is not None and o["minutes"] < limit * 60)
 
 
 def load_data():
@@ -270,7 +276,7 @@ def main():
         except Exception as e:
             print(f"bagajlı kontrol {key} HATA: {e}", file=sys.stderr)
             continue
-        best = next((o for o in opts if len(o["legs"]) == 2), None)
+        best = next((o for o in opts if len(o["legs"]) == 2 and short_enough(o)), None)
         if best:
             entry["safe"] = {**compact_option(best), "run": run_idx, "url": url}
             print(f"bagajlı kontrol {key}: {best['price']} (normal {entry['connecting'][0]['price']})")
