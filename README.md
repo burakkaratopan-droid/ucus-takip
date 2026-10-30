@@ -1,8 +1,8 @@
 # İstanbul ⇄ Japonya bayram uçuş takipçisi
 
-IST ⇄ Tokyo Haneda (HND), Tokyo Narita (NRT) ve Osaka Kansai (KIX) gidiş-dönüş fiyatlarını, ayrıca Narita'ya gidiş + Kansai'den dönüş (NRT-KIX) fiyatlarını günde üç kez (TR saatiyle 08:00, 14:00, 20:00) Google Flights'tan çeker.
+IST ⇄ Tokyo Haneda (HND), Tokyo Narita (NRT) ve Osaka Kansai (KIX) gidiş-dönüş fiyatlarını günde üç kez (TR saatiyle 08:00, 14:00, 20:00) Google Flights'tan çeker.
 
-- Ramazan ve Kurban bayramlarını **arife dahil tamamen** kapsayan 10–15 günlük tüm kombinasyonlar (2027 için rota başına 120, toplam 480 adet)
+- Ramazan ve Kurban bayramlarını **arife dahil tamamen** kapsayan 10–15 günlük tüm kombinasyonlar (2027 için havalimanı başına 120, toplam 360 adet)
 - Aktarmasız en ucuz fiyat ve en ucuz 3 tek aktarmalı seçenek
 - 40.000 TL altındaki tek aktarmalılar panelde işaretlenir
 - Google boş sonuç döndürürse son bilinen fiyat soluk gösterilir
