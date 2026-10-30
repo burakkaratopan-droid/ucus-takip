@@ -10,6 +10,10 @@ on:
         description: "Tarama yapmadan sadece test alarmı gönder"
         type: boolean
         default: false
+      probe:
+        description: "Tarama yapmadan çoklu şehir teşhis sorgusu çalıştır"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -35,13 +39,23 @@ jobs:
         run: python tracker.py --test-alarm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Teşhis
+        if: ${{ inputs.probe }}
+        run: |
+          python tracker.py --probe
+          git config user.name "fiyat-botu"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add probe
+          git commit -m "Teşhis çıktısı"
+          git pull --rebase
+          git push
       - name: Tarama
-        if: ${{ !inputs.test_alarm }}
+        if: ${{ !inputs.test_alarm && !inputs.probe }}
         run: python tracker.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Sonuçları kaydet
-        if: ${{ !inputs.test_alarm }}
+        if: ${{ !inputs.test_alarm && !inputs.probe }}
         run: |
           git config user.name "fiyat-botu"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

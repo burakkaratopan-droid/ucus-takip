@@ -307,8 +307,32 @@ def main():
     sys.exit(1 if ok == 0 and combos else 0)
 
 
+def probe():
+    """Teşhis: bir çoklu şehir ve bir normal gidiş-dönüş sorgusunun ham Google verisini probe/ altına yazar."""
+    out = ROOT / "probe"
+    out.mkdir(exist_ok=True)
+    dep, ret = date(2027, 3, 5), date(2027, 3, 17)
+    for dest in ["HND-NRT", "NRT"]:
+        for stops in (0, 1):
+            q = build_query(dest, dep, ret, stops)
+            html = fetch_flights_html(q)
+            name = f"{dest}_{stops}"
+            (out / f"{name}.html").write_text(html, encoding="utf-8")
+            node = LexborHTMLParser(html).css_first(r"script.ds\:1")
+            txt = node.text() if node else "YOK"
+            (out / f"{name}.ds1.txt").write_text(txt, encoding="utf-8")
+            try:
+                n = len(parse(html))
+            except Exception as e:
+                n = f"hata: {e}"
+            print(name, q.url(), "html", len(html), "ds1", len(txt), "secenek", n)
+            time.sleep(3)
+
+
 if __name__ == "__main__":
-    if "--test-alarm" in sys.argv:
+    if "--probe" in sys.argv:
+        probe()
+    elif "--test-alarm" in sys.argv:
         notify([{"title": "test", "text": "Bu bir test alarmıdır. Bu e-postayı aldıysan bildirimler çalışıyor."}])
     else:
         main()
