@@ -396,7 +396,7 @@ function chart(c){
 }
 
 function optHtml(o){
-  const legs = o.legs.map(l => `${l.from} ${l.dep} → ${l.to} ${l.arr}`).join(" · ");
+  const legs = o.legs.map(l => `${l.from}${l.dep ? " " + l.dep : ""} → ${l.to}${l.arr ? " " + l.arr : ""}`).join(" · ");
   const dur = o.minutes ? ` · ${Math.floor(o.minutes / 60)} sa ${o.minutes % 60} dk` : "";
   return `<div class="opt"><div class="top"><span>${o.airlines.join(", ")}${o.via.length ? " · " + o.via.join(", ") + " aktarmalı" : " · aktarmasız"}</span><span>${TL(o.price)}</span></div>
     <div class="legs">Gidiş: ${legs}${dur}</div></div>`;

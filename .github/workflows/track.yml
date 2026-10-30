@@ -26,7 +26,7 @@ concurrency:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 210
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -34,6 +34,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+      - run: python -m playwright install --with-deps chromium
       - name: Test alarmı
         if: ${{ inputs.test_alarm }}
         run: python tracker.py --test-alarm
@@ -42,8 +43,6 @@ jobs:
       - name: Teşhis
         if: ${{ inputs.probe }}
         run: |
-          pip install playwright
-          python -m playwright install --with-deps chromium
           python probe_browser.py
           git config user.name "fiyat-botu"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

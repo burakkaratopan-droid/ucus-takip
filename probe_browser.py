@@ -1,39 +1,26 @@
-"""Teşhis: çoklu şehir sonuçlarını gerçek tarayıcıyla açıp sayfada fiyat görünüyor mu bakar."""
-import sys
+"""Teşhis: açık çene sorgularını tarayıcıyla çalıştırıp ayrıştırılan sonuçları yazdırır."""
+import time
 from datetime import date
 from pathlib import Path
-
-from playwright.sync_api import sync_playwright
 
 import tracker
 
 out = Path(__file__).parent / "probe"
 out.mkdir(exist_ok=True)
 dep, ret = date(2027, 3, 5), date(2027, 3, 17)
-with sync_playwright() as p:
-    b = p.chromium.launch()
-    page = b.new_page(locale="tr-TR", viewport={"width": 1280, "height": 2000})
-    for dest, stops in [("HND-NRT", 1), ("HND-NRT", 0), ("NRT", 1)]:
-        url = tracker.build_query(dest, dep, ret, stops).url()
-        page.goto(url, wait_until="domcontentloaded")
-        # Çerez onayı çıkarsa kabul et
-        for label in ["Tümünü kabul et", "Accept all"]:
-            btn = page.get_by_role("button", name=label)
-            if btn.count():
-                btn.first.click()
-                page.wait_for_load_state("domcontentloaded")
-                break
-        try:
-            page.wait_for_selector("li .YMlIz, li [aria-label*='TL']", timeout=30000)
-        except Exception as e:
-            print(dest, stops, "bekleme zaman aşımı", e)
-        page.wait_for_timeout(3000)
-        name = f"browser_{dest}_{stops}"
-        page.screenshot(path=str(out / f"{name}.png"), full_page=False)
-        items = page.locator("li").all_inner_texts()
-        items = [i.replace("\n", " | ") for i in items if "TL" in i]
-        (out / f"{name}.txt").write_text(url + "\n" + "\n".join(items), encoding="utf-8")
-        print(dest, stops, "fiyatlı satır:", len(items))
-        for i in items[:3]:
-            print("  ", i[:200])
-    b.close()
+for dest in ["HND-NRT", "HND-KIX", "NRT-KIX"]:
+    t = time.time()
+    try:
+        opts, url = tracker.fetch_browser(dest, dep, ret)
+    except Exception as e:
+        opts, url = [], f"HATA {e}"
+    secs = time.time() - t
+    tracker._page().screenshot(path=str(out / f"{dest}.png"))
+    direct, conn = tracker.summarize(opts, opts)
+    lines = [f"{dest} {secs:.1f} sn, {len(opts)} seçenek, {url}",
+             f"  aktarmasız: {direct and (direct['price'], direct['airlines'], direct['minutes'])}"]
+    lines += [f"  aktarmalı: {c['price']} {c['airlines']} {[l['to'] for l in c['legs'][:-1]]} {c['minutes']} dk" for c in conn]
+    lines += [f"  ham: {o['price']} {o['airlines']} {len(o['legs'])-1} aktarma {o['minutes']} dk" for o in opts]
+    (out / f"{dest}.txt").write_text("\n".join(lines), encoding="utf-8")
+    print("\n".join(lines[:6]))
+tracker.close_browser()

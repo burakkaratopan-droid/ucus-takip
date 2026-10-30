@@ -8,6 +8,7 @@ docs/data.json dosyasına ekler. Panel (docs/index.html) bu dosyayı okur.
 import json
 import os
 import random
+import re
 import sys
 import time
 import urllib.request
@@ -129,6 +130,96 @@ def fetch(dest, dep, ret, max_stops, safe=False, attempts=3):
     raise err
 
 
+_BROWSER = {}
+
+
+def _page():
+    if "page" not in _BROWSER:
+        from playwright.sync_api import sync_playwright
+        pw = sync_playwright().start()
+        browser = pw.chromium.launch()
+        _BROWSER.update(pw=pw, browser=browser,
+                        page=browser.new_page(locale="tr-TR", viewport={"width": 1280, "height": 2000}))
+    return _BROWSER["page"]
+
+
+def close_browser():
+    if "pw" in _BROWSER:
+        _BROWSER["browser"].close()
+        _BROWSER["pw"].stop()
+        _BROWSER.clear()
+
+
+_SP = r"[^\S\n]+"  # satır sonu hariç boşluk
+
+
+def parse_result_text(text, origin, out_to):
+    """Google Flights sonuç satırının görünen metninden uçuş seçeneği çıkarır (tarayıcı yolu)."""
+    if "Business" in text or "Premium" in text:
+        return None  # karışık kabinli pahalı seçenekler
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    price = re.search(r"₺" + r"[^\S\n]*([\d.]+)", text)
+    times = re.search(r"(\d{1,2}:\d{2})" + _SP + r"?[–-]" + _SP + r"?(\d{1,2}:\d{2})", text)
+    dur = re.search(r"(\d+)" + _SP + r"sa\.(?:" + _SP + r"(\d+)" + _SP + r"dk\.)?", text)
+    if not (price and times and dur):
+        return None
+    if "Aktarmasız" in text:
+        stops = 0
+    else:
+        m = re.search(r"(\d+)" + _SP + r"aktarma", text)
+        if not m:
+            return None
+        stops = int(m.group(1))
+    via = []
+    if stops:
+        m = re.search(r"(?:sa\.|dk\.)" + _SP + r"([A-Z]{3}(?:," + _SP + r"[A-Z]{3})*)\s*$", text[dur.end():], re.M)
+        via = [v.strip() for v in m.group(1).split(",")] if m else ["?"] * stops
+    airline_line = next((lines[i + 1] for i, l in enumerate(lines) if times.group(1) in l and i + 1 < len(lines)), "")
+    airlines = [a.strip() for a in re.split(r"[,·]", airline_line) if a.strip()] or ["?"]
+    stopsl = [origin] + via + [out_to]
+    legs = []
+    for i in range(len(stopsl) - 1):
+        legs.append({"from": stopsl[i], "to": stopsl[i + 1],
+                     "dep": times.group(1) if i == 0 else "",
+                     "arr": times.group(2) if i == len(stopsl) - 2 else "",
+                     "arr_date": None, "minutes": None})
+    return {
+        "price": int(price.group(1).replace(".", "")),
+        "airlines": airlines,
+        "legs": legs,
+        "minutes": int(dur.group(1)) * 60 + int(dur.group(2) or 0),
+    }
+
+
+def fetch_browser(dest, dep, ret, attempts=2):
+    """Açık çene (çoklu şehir) sorgusunu tarayıcıda açar; sonuçlar tüm seyahatin fiyatıdır."""
+    q = build_query(dest, dep, ret, 1)
+    url = q.url()
+    out_to = dest.split("-")[0]
+    page = _page()
+    for i in range(attempts):
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_function(
+                "() => [...document.querySelectorAll('li')].some(li => li.innerText.includes('₺'))",
+                timeout=30000)
+            more = page.get_by_role("button", name=re.compile("Daha fazla uçuş"))
+            if more.count():
+                more.first.click()
+                page.wait_for_timeout(2500)
+            texts = page.locator("li").all_inner_texts()
+            options = [o for o in (parse_result_text(t, CONFIG["origin"], out_to) for t in texts if "₺" in t) if o]
+            if options:
+                options.sort(key=lambda x: x["price"])
+                return options, url
+        except Exception as e:  # zaman aşımı, sayfa yapısı değişikliği
+            if i == attempts - 1:
+                raise
+            print(f"tarayıcı yeniden deneniyor ({dest}): {e}", file=sys.stderr)
+        time.sleep(3)
+    return [], url
+
+
 def summarize(direct_opts, conn_opts):
     direct = next((o for o in direct_opts if len(o["legs"]) == 1), None)
     conn = [o for o in conn_opts if len(o["legs"]) == 2 and short_enough(o)]
@@ -227,9 +318,14 @@ def main():
     for n, (dest, hid, dep, ret, days) in enumerate(combos, 1):
         key = f"{dest}_{dep.isoformat()}_{ret.isoformat()}"
         try:
-            direct_opts, direct_url = fetch(dest, dep, ret, 0)
-            time.sleep(1 + random.random() * 2)
-            conn_opts, conn_url = fetch(dest, dep, ret, 1)
+            if "-" in dest:
+                # Açık çene: Google bu sonuçları sayfaya sonradan yüklüyor, gerçek tarayıcıyla okunuyor.
+                opts, conn_url = fetch_browser(dest, dep, ret)
+                direct_opts, conn_opts, direct_url = opts, opts, conn_url
+            else:
+                direct_opts, direct_url = fetch(dest, dep, ret, 0)
+                time.sleep(1 + random.random() * 2)
+                conn_opts, conn_url = fetch(dest, dep, ret, 1)
             time.sleep(1 + random.random() * 2)
         except Exception as e:
             failed += 1
@@ -294,6 +390,7 @@ def main():
             })
     notify(alerts)
 
+    close_browser()
     data["updated"] = now
     data["config"] = CONFIG
     data["last_run"] = {
@@ -307,32 +404,8 @@ def main():
     sys.exit(1 if ok == 0 and combos else 0)
 
 
-def probe():
-    """Teşhis: bir çoklu şehir ve bir normal gidiş-dönüş sorgusunun ham Google verisini probe/ altına yazar."""
-    out = ROOT / "probe"
-    out.mkdir(exist_ok=True)
-    dep, ret = date(2027, 3, 5), date(2027, 3, 17)
-    for dest in ["HND-NRT", "NRT"]:
-        for stops in (0, 1):
-            q = build_query(dest, dep, ret, stops)
-            html = fetch_flights_html(q)
-            name = f"{dest}_{stops}"
-            (out / f"{name}.html").write_text(html, encoding="utf-8")
-            node = LexborHTMLParser(html).css_first(r"script.ds\:1")
-            txt = node.text() if node else "YOK"
-            (out / f"{name}.ds1.txt").write_text(txt, encoding="utf-8")
-            try:
-                n = len(parse(html))
-            except Exception as e:
-                n = f"hata: {e}"
-            print(name, q.url(), "html", len(html), "ds1", len(txt), "secenek", n)
-            time.sleep(3)
-
-
 if __name__ == "__main__":
-    if "--probe" in sys.argv:
-        probe()
-    elif "--test-alarm" in sys.argv:
+    if "--test-alarm" in sys.argv:
         notify([{"title": "test", "text": "Bu bir test alarmıdır. Bu e-postayı aldıysan bildirimler çalışıyor."}])
     else:
         main()
