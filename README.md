@@ -1,8 +1,8 @@
-# İstanbul ⇄ Tokyo bayram uçuş takipçisi
+# İstanbul ⇄ Japonya bayram uçuş takipçisi
 
-IST ⇄ HND gidiş-dönüş fiyatlarını günde üç kez (TR saatiyle 08:00, 14:00, 20:00) Google Flights'tan çeker.
+IST ⇄ Tokyo Haneda (HND), Tokyo Narita (NRT) ve Osaka Kansai (KIX) gidiş-dönüş fiyatlarını günde üç kez (TR saatiyle 08:00, 14:00, 20:00) Google Flights'tan çeker.
 
-- Ramazan ve Kurban bayramlarını **arife dahil tamamen** kapsayan 10–15 günlük tüm kombinasyonlar (2027 için 120 adet)
+- Ramazan ve Kurban bayramlarını **arife dahil tamamen** kapsayan 10–15 günlük tüm kombinasyonlar (2027 için havalimanı başına 120, toplam 360 adet)
 - Aktarmasız en ucuz fiyat ve en ucuz 3 tek aktarmalı seçenek
 - 40.000 TL altındaki tek aktarmalılar panelde işaretlenir
 - En ucuz 5 aktarmalı kombinasyon her taramada bavul dahil ve tek bilet şartıyla ayrıca kontrol edilir
@@ -14,7 +14,7 @@ IST ⇄ HND gidiş-dönüş fiyatlarını günde üç kez (TR saatiyle 08:00, 14
 
 | Dosya | Ne işe yarar |
 |---|---|
-| `config.json` | Rota, bayram tarihleri, gün aralığı, 40 bin TL eşiği |
+| `config.json` | Kalkış ve varış havalimanları (`destinations`), bayram tarihleri, gün aralığı, 40 bin TL eşiği |
 | `tracker.py` | Taramayı yapar, sonuçları `docs/data.json`'a ekler |
 | `docs/index.html` | Panel (GitHub Pages) |
 | `.github/workflows/track.yml` | Günde 3 kez otomatik çalıştırır |
@@ -22,7 +22,7 @@ IST ⇄ HND gidiş-dönüş fiyatlarını günde üç kez (TR saatiyle 08:00, 14
 ## Ayar değiştirmek
 
 `config.json` dosyasını GitHub üzerinde düzenleyip kaydetmen yeterli; bir sonraki taramada geçerli olur.
-2028 bayramlarını eklemek için `holidays` listesine yeni satır ekle.
+2028 bayramlarını eklemek için `holidays` listesine yeni satır ekle. Havalimanı eklemek/çıkarmak için `destinations` listesini düzenle (her havalimanı taramayı yaklaşık 10 dakika uzatır).
 
 ## Elle tarama başlatmak
 

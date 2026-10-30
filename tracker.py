@@ -1,4 +1,4 @@
-"""IST <-> HND bayram uçuş fiyat takipçisi.
+"""IST <-> Japonya (Haneda, Narita, Kansai) bayram uçuş fiyat takipçisi.
 
 Her çalıştırmada bayramı (arife dahil) tamamen kapsayan tüm gidiş-dönüş
 kombinasyonlarını Google Flights üzerinden tarar ve sonuçları
@@ -22,6 +22,13 @@ CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 DATA_FILE = ROOT / "docs" / "data.json"
 
 
+def destinations():
+    """config.json'daki varış havalimanı kodları (eski tek 'destination' ayarı da desteklenir)."""
+    if "destinations" in CONFIG:
+        return [d["code"] for d in CONFIG["destinations"]]
+    return [CONFIG["destination"]]
+
+
 def combinations():
     """Bayramın ilk gününden (arife) önce/aynı gün gidip son gününden sonra/aynı gün dönen kombinasyonlar."""
     today = date.today()
@@ -33,12 +40,13 @@ def combinations():
             while dep <= first:
                 ret = dep + timedelta(days=days)
                 if dep > today:
-                    yield h["id"], dep, ret, days
+                    for dest in destinations():
+                        yield dest, h["id"], dep, ret, days
                 dep += timedelta(days=1)
 
 
-def build_query(dep, ret, max_stops, safe=False):
-    o, d = CONFIG["origin"], CONFIG["destination"]
+def build_query(dest, dep, ret, max_stops, safe=False):
+    o, d = CONFIG["origin"], dest
     return create_query(
         flights=[
             FlightQuery(date=dep.isoformat(), from_airport=o, to_airport=d),
@@ -104,8 +112,8 @@ def parse(html):
     return options
 
 
-def fetch(dep, ret, max_stops, safe=False, attempts=3):
-    q = build_query(dep, ret, max_stops, safe)
+def fetch(dest, dep, ret, max_stops, safe=False, attempts=3):
+    q = build_query(dest, dep, ret, max_stops, safe)
     err = None
     for i in range(attempts):
         try:
@@ -126,9 +134,18 @@ def summarize(direct_opts, conn_opts):
 
 
 def load_data():
-    if DATA_FILE.exists():
-        return json.loads(DATA_FILE.read_text(encoding="utf-8"))
-    return {"runs": [], "combos": {}}
+    if not DATA_FILE.exists():
+        return {"runs": [], "combos": {}}
+    data = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+    # Eski kayıtlar sadece Haneda içindi ve anahtarlarında havalimanı yoktu: "HND_" önekiyle taşı.
+    migrated = {}
+    for key, c in data["combos"].items():
+        if "dest" not in c:
+            c["dest"] = "HND"
+            key = f"HND_{key}"
+        migrated[key] = c
+    data["combos"] = migrated
+    return data
 
 
 def compact_option(o):
@@ -200,12 +217,12 @@ def main():
     prev_direct_low = min((p[1] for c in data["combos"].values() for p in c["history"] if p[1] is not None),
                           default=None)
 
-    for n, (hid, dep, ret, days) in enumerate(combos, 1):
-        key = f"{dep.isoformat()}_{ret.isoformat()}"
+    for n, (dest, hid, dep, ret, days) in enumerate(combos, 1):
+        key = f"{dest}_{dep.isoformat()}_{ret.isoformat()}"
         try:
-            direct_opts, direct_url = fetch(dep, ret, 0)
+            direct_opts, direct_url = fetch(dest, dep, ret, 0)
             time.sleep(1 + random.random() * 2)
-            conn_opts, conn_url = fetch(dep, ret, 1)
+            conn_opts, conn_url = fetch(dest, dep, ret, 1)
             time.sleep(1 + random.random() * 2)
         except Exception as e:
             failed += 1
@@ -214,7 +231,7 @@ def main():
 
         direct, conn = summarize(direct_opts, conn_opts)
         entry = data["combos"].setdefault(key, {
-            "holiday": hid, "dep": dep.isoformat(), "ret": ret.isoformat(),
+            "dest": dest, "holiday": hid, "dep": dep.isoformat(), "ret": ret.isoformat(),
             "days": days, "history": [],
         })
         # Google bazen boş döndürüyor: o zaman son bilinen fiyatı koru, "eski" diye işaretle.
@@ -249,7 +266,7 @@ def main():
         dep, ret = date.fromisoformat(entry["dep"]), date.fromisoformat(entry["ret"])
         try:
             time.sleep(1 + random.random() * 2)
-            opts, url = fetch(dep, ret, 1, safe=True)
+            opts, url = fetch(entry["dest"], dep, ret, 1, safe=True)
         except Exception as e:
             print(f"bagajlı kontrol {key} HATA: {e}", file=sys.stderr)
             continue
@@ -272,8 +289,8 @@ def main():
             safe_txt = (f" Bavul dahil, tek bilet: {tl(safe['price'])}."
                         if safe and safe.get("run") == run_idx else "")
             alerts.append({
-                "title": f"{tl(price)} aktarmalı",
-                "text": f"{entry['dep']} → {entry['ret']} ({entry['days']} gün): {tl(price)}, "
+                "title": f"{tl(price)} aktarmalı ({entry['dest']})",
+                "text": f"IST ⇄ {entry['dest']} {entry['dep']} → {entry['ret']} ({entry['days']} gün): {tl(price)}, "
                         f"{', '.join(o['airlines'])} · {', '.join(o['via'])} aktarmalı."
                         f"{safe_txt} [Google Flights]({entry['urls']['connecting']})",
             })
@@ -283,8 +300,8 @@ def main():
         price, c = min(lows, key=lambda x: x[0])
         if price <= prev_direct_low - DIRECT_LOW_STEP:
             alerts.append({
-                "title": f"aktarmasız yeni en düşük {tl(price)}",
-                "text": f"Aktarmasız şimdiye kadarki en düşük fiyat: {c['dep']} → {c['ret']} ({c['days']} gün) "
+                "title": f"aktarmasız yeni en düşük {tl(price)} ({c['dest']})",
+                "text": f"Aktarmasız şimdiye kadarki en düşük fiyat: IST ⇄ {c['dest']} {c['dep']} → {c['ret']} ({c['days']} gün) "
                         f"{tl(price)}, {', '.join(c['direct']['airlines'])} (önceki en düşük {tl(prev_direct_low)}). "
                         f"[Google Flights]({c['urls']['direct']})",
             })

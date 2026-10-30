@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tokyo Bayram Uçuşları</title>
+<title>Japonya Bayram Uçuşları</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23d9480f' d='M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z'/></svg>">
 <style>
 :root{
@@ -110,13 +110,14 @@ footer{font-size:12px;color:var(--ink3);margin-top:32px;line-height:1.6}
 <body>
 <div class="wrap">
   <header>
-    <h1>İstanbul ⇄ Tokyo Haneda<small>Bayramları kapsayan 10–15 günlük gidiş-dönüşler · tek kişi, ekonomi</small></h1>
+    <h1>İstanbul ⇄ Japonya<small id="sub">Tokyo Haneda, Tokyo Narita, Osaka Kansai · bayramları kapsayan 10–15 günlük gidiş-dönüşler · tek kişi, ekonomi</small></h1>
     <div class="meta" id="meta">Yükleniyor…</div>
   </header>
 
   <div class="cards" id="cards"></div>
 
   <div class="controls">
+    <div class="seg" id="f-dest" role="group" aria-label="Havalimanı"></div>
     <div class="seg" id="f-holiday" role="group" aria-label="Bayram"></div>
     <div class="seg" id="f-kind" role="group" aria-label="Uçuş tipi">
       <button data-v="direct" aria-pressed="true">Aktarmasız</button>
@@ -134,7 +135,7 @@ footer{font-size:12px;color:var(--ink3);margin-top:32px;line-height:1.6}
 
   <section>
     <h2>Fiyat haritası</h2>
-    <p class="hint">Satırlar gidiş tarihi, sütunlar kaç günlük olduğu. Yeşil ucuz, kırmızı pahalı. Bir kutuya tıklayınca ayrıntısı açılır.</p>
+    <p class="hint">Satırlar gidiş tarihi, sütunlar kaç günlük olduğu. Yeşil ucuz, kırmızı pahalı. "Tümü" seçiliyken her kutu o tarih için en ucuz havalimanını gösterir. Bir kutuya tıklayınca ayrıntısı açılır.</p>
     <div class="heat" id="heat"></div>
     <div class="legend"><span>ucuz</span><i></i><span>pahalı</span></div>
   </section>
@@ -186,7 +187,9 @@ const ago = iso => {
 };
 const store = { get(k){ try { return localStorage.getItem(k); } catch { return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
 
-let DATA, state = { holiday: "all", kind: "direct", selected: null, showAll: false };
+let DATA, state = { dest: "all", holiday: "all", kind: "direct", selected: null, showAll: false };
+const destOf = c => c.dest || "HND";
+const destName = code => ((DATA.config.destinations || []).find(x => x.code === code) || { name: code }).name;
 let LIST = { sort: "d-asc", maxd: "", maxc: "", days: "" };
 try { Object.assign(LIST, JSON.parse(store.get("list") || "{}")); } catch {}
 
@@ -237,6 +240,7 @@ function chgHtml(ch){
 function combos(){
   return Object.entries(DATA.combos)
     .map(([k, c]) => ({ key: k, ...c }))
+    .filter(c => state.dest === "all" || destOf(c) === state.dest)
     .filter(c => state.holiday === "all" || c.holiday === state.holiday);
 }
 
@@ -256,9 +260,9 @@ function renderCards(){
     `<div class="card" ${key ? `style="cursor:pointer" onclick="select('${key}')"` : ""}><div class="lbl"><span class="dot" style="background:${dot}"></span>${lbl}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   document.getElementById("cards").innerHTML =
     card("var(--direct)", "En ucuz aktarmasız", bd ? TL(bd.direct.price) : "—",
-      bd ? `${fmtD(bd.dep)} – ${fmtD(bd.ret)} · ${bd.days} gün ${chgHtml(change(bd, "direct"))}` : "Bulunamadı", bd && bd.key) +
+      bd ? `${destName(destOf(bd))} · ${fmtD(bd.dep)} – ${fmtD(bd.ret)} · ${bd.days} gün ${chgHtml(change(bd, "direct"))}` : "Bulunamadı", bd && bd.key) +
     card("var(--conn)", "En ucuz tek aktarmalı", bc ? TL(bc.connecting[0].price) : "—",
-      bc ? `${fmtD(bc.dep)} – ${fmtD(bc.ret)} · ${bc.connecting[0].airlines.join(", ")} · ${bc.connecting[0].via.join(", ")}` : "Bulunamadı", bc && bc.key) +
+      bc ? `${destName(destOf(bc))} · ${fmtD(bc.dep)} – ${fmtD(bc.ret)} · ${bc.connecting[0].airlines.join(", ")} · ${bc.connecting[0].via.join(", ")}` : "Bulunamadı", bc && bc.key) +
     card("var(--good)", `${th.toLocaleString("tr-TR")} TL altı aktarmalı`, under.length,
       under.length ? `${under.length} kombinasyonda var` : "Henüz yok, takipteyiz", under[0] && under[0].key);
 }
@@ -279,12 +283,14 @@ function renderHeat(){
     const cs = all.filter(c => c.holiday === h.id);
     const deps = [...new Set(cs.map(c => c.dep))].sort();
     const rows = deps.map(dep => `<tr><th class="row"><span class="lg">${fmtDw(dep)}</span><span class="sm">${fmtD(dep)}</span></th>` + lens.map(n => {
-      const c = cs.find(c => c.dep === dep && c.days === n);
+      // Birden çok havalimanı seçiliyse aynı tarih için en ucuzunu göster
+      const cands = cs.filter(c => c.dep === dep && c.days === n);
+      const c = cands.filter(c => priceOf(c, state.kind)).sort((a, b) => priceOf(a, state.kind) - priceOf(b, state.kind))[0] || cands[0];
       if (!c) return `<td class="empty"></td>`;
       const p = priceOf(c, state.kind);
       if (!p) return `<td class="na" onclick="select('${c.key}')" title="Sonuç yok">–</td>`;
       const old = isStale(c, state.kind);
-      return `<td class="${old ? "old" : ""}" style="background:${color(p, min, max)}" onclick="select('${c.key}')" title="${fmtD(c.dep)} – ${fmtD(c.ret)} · ${TL(p)}${old ? " · son bilinen fiyat" : ""}">${Math.round(p / 1000)}k</td>`;
+      return `<td class="${old ? "old" : ""}" style="background:${color(p, min, max)}" onclick="select('${c.key}')" title="${destName(destOf(c))} · ${fmtD(c.dep)} – ${fmtD(c.ret)} · ${TL(p)}${old ? " · son bilinen fiyat" : ""}">${Math.round(p / 1000)}k</td>`;
     }).join("") + `</tr>`).join("");
     return `<div class="card"><div style="font-weight:600;margin-bottom:2px">${h.name}</div><div class="hint" style="margin-bottom:8px">${h.note}</div>
       <table><thead><tr><th class="row">Gidiş</th>${lens.map(n => `<th>${n}g</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -342,7 +348,7 @@ function renderList(){
     shown.map(c => {
       const cn = c.connecting && c.connecting[0];
       return `<div class="row ${state.selected === c.key ? "sel" : ""}" onclick="select('${c.key}')">
-        <span><div class="d1">${fmtD(c.dep)} – ${fmtD(c.ret)}</div><div class="d2">${c.days} gün · ${c.holiday.startsWith("ramazan") ? "Ramazan" : "Kurban"}</div></span>
+        <span><div class="d1">${fmtD(c.dep)} – ${fmtD(c.ret)}</div><div class="d2">${destOf(c)} · ${c.days} gün · ${c.holiday.startsWith("ramazan") ? "Ramazan" : "Kurban"}</div></span>
         <span><span class="price">${TL(c.direct && c.direct.price)}</span>${chgHtml(change(c, "direct"))}${badges(c, "direct")}</span>
         <span><span class="price">${TL(cn && cn.price)}</span>${chgHtml(change(c, "conn"))}${cn && cn.price <= th ? `<span class="tag">40k altı</span>` : ""}${badges(c, "conn")}
           <div class="d2">${cn ? cn.airlines.join(", ") + " · " + cn.via.join(", ") : ""}</div>${safeHtml(c)}</span>
@@ -410,7 +416,7 @@ function renderDetail(){
   el.className = "card on";
   const th = DATA.config.connecting_threshold;
   el.innerHTML = `<button class="close" onclick="select(null)">Kapat</button>
-    <h2>${fmtDw(c.dep)} → ${fmtDw(c.ret)} · ${c.days} gün</h2>
+    <h2>IST ⇄ ${destName(destOf(c))} · ${fmtDw(c.dep)} → ${fmtDw(c.ret)} · ${c.days} gün</h2>
     <p class="hint">${DATA.config.holidays.find(h => h.id === c.holiday).name} · son kontrol ${ago(DATA.runs[c.checked])}</p>
     <div style="display:flex;gap:16px;font-size:12px;color:var(--ink2)"><span><span class="dot" style="background:var(--direct)"></span> Aktarmasız</span><span><span class="dot" style="background:var(--conn)"></span> En ucuz tek aktarmalı</span></div>
     ${chart(c)}
@@ -448,6 +454,11 @@ function setupFilters(){
   };
   el.onclick = e => { const v = e.target.dataset.v; if (v) setHoliday(v); };
   sel.addEventListener("input", () => setHoliday(sel.value));
+  const ds = [["all", "Tümü"], ...(DATA.config.destinations || [{ code: "HND", name: "Tokyo Haneda" }]).map(x => [x.code, x.name])];
+  const de = document.getElementById("f-dest");
+  de.innerHTML = ds.map(([v, n]) => `<button data-v="${v}" aria-pressed="${v === state.dest}" title="${n}">${v === "all" ? n : v}</button>`).join("");
+  de.onclick = e => { const v = e.target.dataset.v; if (!v) return; state.dest = v; state.showAll = false;
+    de.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v)); renderAll(); };
   const k = document.getElementById("f-kind");
   k.onclick = e => { const v = e.target.dataset.v; if (!v) return; state.kind = v; k.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v));
     LIST.sort = v === "direct" ? "d-asc" : "c-asc"; document.getElementById("f-sort").value = LIST.sort; saveList(); renderAll(); };

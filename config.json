@@ -1,6 +1,19 @@
 {
   "origin": "IST",
-  "destination": "HND",
+  "destinations": [
+    {
+      "code": "HND",
+      "name": "Tokyo Haneda"
+    },
+    {
+      "code": "NRT",
+      "name": "Tokyo Narita"
+    },
+    {
+      "code": "KIX",
+      "name": "Osaka Kansai"
+    }
+  ],
   "currency": "TRY",
   "adults": 1,
   "min_days": 10,
