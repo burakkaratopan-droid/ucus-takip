@@ -159,7 +159,7 @@ def parse_result_text(text, origin, out_to):
         return None  # karışık kabinli pahalı seçenekler
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     price = re.search(r"₺" + r"[^\S\n]*([\d.]+)", text)
-    times = re.search(r"(\d{1,2}:\d{2})" + _SP + r"?[–-]" + _SP + r"?(\d{1,2}:\d{2})", text)
+    times = re.search(r"(\d{1,2}:\d{2})\s*[–-]\s*(\d{1,2}:\d{2})", text)
     dur = re.search(r"(\d+)" + _SP + r"sa\.(?:" + _SP + r"(\d+)" + _SP + r"dk\.)?", text)
     if not (price and times and dur):
         return None
@@ -174,7 +174,10 @@ def parse_result_text(text, origin, out_to):
     if stops:
         m = re.search(r"(?:sa\.|dk\.)" + _SP + r"([A-Z]{3}(?:," + _SP + r"[A-Z]{3})*)\s*$", text[dur.end():], re.M)
         via = [v.strip() for v in m.group(1).split(",")] if m else ["?"] * stops
-    airline_line = next((lines[i + 1] for i, l in enumerate(lines) if times.group(1) in l and i + 1 < len(lines)), "")
+    # Havayolu adı, varış saatinin yazdığı satırdan sonraki satırdır.
+    after = text[times.end():].split("\n", 2)
+    airline_line = after[1].strip() if len(after) > 1 else ""
+    airline_line = re.sub(r"([a-z])([A-Z])", r"\1, \2", airline_line.split("İşleten")[0])
     airlines = [a.strip() for a in re.split(r"[,·]", airline_line) if a.strip()] or ["?"]
     stopsl = [origin] + via + [out_to]
     legs = []

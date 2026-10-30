@@ -8,7 +8,7 @@ import tracker
 out = Path(__file__).parent / "probe"
 out.mkdir(exist_ok=True)
 dep, ret = date(2027, 3, 5), date(2027, 3, 17)
-for dest in ["HND-NRT"]:
+for dest in ["HND-NRT", "HND-KIX", "NRT-KIX", "HND-NRT"]:
     t = time.time()
     try:
         opts, url = tracker.fetch_browser(dest, dep, ret)
