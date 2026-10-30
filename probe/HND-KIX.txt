@@ -1,0 +1,10 @@
+HND-KIX 4.0 sn, 5 seçenek, https://www.google.com/travel/flights/search?tfs=GhwSCjIwMjctMDMtMDUoAWoFEgNJU1RyBRIDSE5EGhwSCjIwMjctMDMtMTcoAWoFEgNLSVhyBRIDSVNUQgEBSAGYAQM=&hl=tr&curr=TRY
+  aktarmasız: (102950, ['Turkish Airlines', 'ANA'], 675)
+  aktarmalı: 106547 ['Turkish Airlines', 'ANA'] ['KIX'] 830 dk
+  aktarmalı: 109791 ['Emirates'] ['DXB'] 1010 dk
+  aktarmalı: 232592 ['China Southern'] ['CAN'] 1030 dk
+  ham: 71017 ['Korean Air'] 1 aktarma 1135 dk
+  ham: 102950 ['Turkish Airlines', 'ANA'] 0 aktarma 675 dk
+  ham: 106547 ['Turkish Airlines', 'ANA'] 1 aktarma 830 dk
+  ham: 109791 ['Emirates'] 1 aktarma 1010 dk
+  ham: 232592 ['China Southern'] 1 aktarma 1030 dk
