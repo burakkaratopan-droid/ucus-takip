@@ -306,6 +306,78 @@ def notify(alerts):
         print("Alarm issue açılamadı:", e, file=sys.stderr)
 
 
+RETURN_CHECKS = 25  # her taramada dönüş süresi doğrulanacak en ucuz aktarmalı kombinasyon sayısı
+RETURN_QUERY_CAP = 60  # bunun için yapılabilecek en fazla sorgu
+
+
+def fetch_return_oneway(dest, ret):
+    """Dönüş yönünü tek yön olarak sorgular; sadece süreleri öğrenmek için (fiyatı kullanılmaz)."""
+    back_from = dest.split("-")[1] if "-" in dest else dest
+    q = create_query(
+        flights=[FlightQuery(date=ret.isoformat(), from_airport=back_from, to_airport=CONFIG["origin"])],
+        trip="one-way", seat="economy", passengers=Passengers(adults=CONFIG["adults"]),
+        language="tr", currency=CONFIG["currency"], max_stops=1,
+    )
+    for i in range(3):
+        try:
+            opts = parse(fetch_flights_html(q))
+            if opts:
+                return opts
+        except Exception as e:
+            print(f"dönüş sorgusu hata ({dest} {ret}): {e}", file=sys.stderr)
+        time.sleep(4 * (i + 1))
+    return []
+
+
+def set_conn_point(entry, run_idx):
+    """Aktarmalı listesi değiştiyse bu taramanın geçmiş noktasını güncelle."""
+    price = entry["connecting"][0]["price"] if entry.get("connecting") else None
+    h = entry["history"]
+    if h and h[-1][0] == run_idx:
+        h[-1][2] = price
+    elif not h or h[-1][2] != price:
+        h.append([run_idx, entry["direct"]["price"] if entry.get("direct") else None, price])
+
+
+def check_returns(data, run_idx):
+    """En ucuz aktarmalılarda aynı havayolunun dönüşü de sınırın altında mı? Değilse o seçeneği ele."""
+    limit = (CONFIG.get("max_connecting_hours") or 999) * 60
+    verified = queries = 0
+    while verified < RETURN_CHECKS and queries < RETURN_QUERY_CAP:
+        todo = sorted(
+            ((k, c) for k, c in data["combos"].items()
+             if c.get("checked") == run_idx and c.get("connecting") and not c["stale"].get("connecting")
+             and c.get("ret_checked") != run_idx),
+            key=lambda kc: kc[1]["connecting"][0]["price"])
+        if not todo:
+            break
+        key, entry = todo[0]
+        time.sleep(1 + random.random() * 2)
+        returns = [o for o in fetch_return_oneway(entry["dest"], date.fromisoformat(entry["ret"]))
+                   if len(o["legs"]) <= 2 and o.get("minutes")]
+        queries += 1
+        entry["ret_checked"] = run_idx
+        if not returns:
+            print(f"dönüş {key}: sonuç yok, kontrol edilemedi")
+            continue
+        kept = []
+        for o in entry["connecting"]:
+            same = [r["minutes"] for r in returns if set(r["airlines"]) & set(o["airlines"][:1])]
+            if same and min(same) < limit:
+                o["ret_minutes"] = min(same)
+                kept.append(o)
+        before = entry["connecting"][0]["price"]
+        if kept:
+            entry["connecting"] = kept
+        else:
+            del entry["connecting"]
+        set_conn_point(entry, run_idx)
+        after = entry["connecting"][0]["price"] if entry.get("connecting") else None
+        if kept:
+            verified += 1
+        print(f"dönüş {key}: {before} → {after}")
+
+
 def main():
     data = load_data()
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -364,6 +436,8 @@ def main():
         ok += 1
         print(f"[{n}/{len(combos)}] {key} aktarmasız={point[1]} aktarmalı={point[2]}"
               + (f" (eski: {', '.join(stale)})" if stale else ""))
+
+    check_returns(data, run_idx)
 
     # Alarmlar
     alerts = []

@@ -167,7 +167,7 @@ footer{font-size:12px;color:var(--ink3);margin-top:32px;line-height:1.6}
   </section>
 
   <footer>
-    Fiyatlar Google Flights'tan günde üç kez otomatik çekilir ve gidiş-dönüş toplam, tek yetişkin içindir. Aktarmalılarda sadece gidişi 18 saatin altında olan uçuşlar gösterilir. Soluk görünen fiyatlar son taramada gelmeyen, son bilinen fiyatlardır. Satın almadan önce fiyatı havayolu sitesinde doğrulayın.<br>
+    Fiyatlar Google Flights'tan günde üç kez otomatik çekilir ve gidiş-dönüş toplam, tek yetişkin içindir. Aktarmalılarda sadece gidişi 18 saatin altında olan uçuşlar gösterilir; en ucuz 25 aktarmalı tarihte aynı havayolunun dönüşünün de 18 saatin altında olduğu ayrıca kontrol edilir. Soluk görünen fiyatlar son taramada gelmeyen, son bilinen fiyatlardır. Satın almadan önce fiyatı havayolu sitesinde doğrulayın.<br>
     Bayram tarihleri Diyanet takvimine göredir. Kombinasyonlar arife dahil tüm bayram günlerini kapsar.
   </footer>
 </div>
@@ -234,6 +234,7 @@ function combos(){
   return Object.entries(DATA.combos)
     .map(([k, c]) => ({ key: k, ...c }))
     .filter(c => state.dest === "all" || destOf(c) === state.dest)
+    .filter(c => DATA.config.holidays.some(h => h.id === c.holiday))
     .filter(c => state.holiday === "all" || c.holiday === state.holiday);
 }
 
@@ -344,7 +345,7 @@ function renderList(){
         <span><div class="d1">${fmtD(c.dep)} – ${fmtD(c.ret)}</div><div class="d2">${destOf(c)} · ${c.days} gün · ${c.holiday.startsWith("ramazan") ? "Ramazan" : "Kurban"}</div></span>
         <span><span class="price">${TL(c.direct && c.direct.price)}</span>${chgHtml(change(c, "direct"))}${badges(c, "direct")}</span>
         <span><span class="price">${TL(cn && cn.price)}</span>${chgHtml(change(c, "conn"))}${cn && cn.price <= th ? `<span class="tag">40k altı</span>` : ""}${badges(c, "conn")}
-          <div class="d2">${cn ? cn.airlines.join(", ") + " · " + cn.via.join(", ") : ""}</div>${cn && cn.minutes ? `<div class="d2">${Math.floor(cn.minutes / 60)} sa ${cn.minutes % 60} dk</div>` : ""}</span>
+          <div class="d2">${cn ? cn.airlines.join(", ") + " · " + cn.via.join(", ") : ""}</div>${cn && cn.minutes ? `<div class="d2">${cn.ret_minutes ? "Gidiş " : ""}${hm(cn.minutes)}${cn.ret_minutes ? ` · Dönüş ${hm(cn.ret_minutes)}` : ""}</div>` : ""}</span>
         <span class="spark">${spark(c, k)}</span></div>`;
     }).join("") +
     (cs.length > 20 ? `<button class="more" onclick="state.showAll=!state.showAll;renderList()">${state.showAll ? "Daha az göster" : `Tümünü göster (${cs.length})`}</button>` : "");
@@ -395,11 +396,12 @@ function chart(c){
   </svg>`;
 }
 
+const hm = m => `${Math.floor(m / 60)} sa${m % 60 ? ` ${m % 60} dk` : ""}`;
 function optHtml(o){
   const legs = o.legs.map(l => `${l.from}${l.dep ? " " + l.dep : ""} → ${l.to}${l.arr ? " " + l.arr : ""}`).join(" · ");
-  const dur = o.minutes ? ` · ${Math.floor(o.minutes / 60)} sa ${o.minutes % 60} dk` : "";
+  const dur = o.minutes ? ` · ${hm(o.minutes)}` : "";
   return `<div class="opt"><div class="top"><span>${o.airlines.join(", ")}${o.via.length ? " · " + o.via.join(", ") + " aktarmalı" : " · aktarmasız"}</span><span>${TL(o.price)}</span></div>
-    <div class="legs">Gidiş: ${legs}${dur}</div></div>`;
+    <div class="legs">Gidiş: ${legs}${dur}</div>${o.ret_minutes ? `<div class="legs">Dönüş (aynı havayolu, en kısa): ${hm(o.ret_minutes)}</div>` : ""}</div>`;
 }
 
 function renderDetail(){
