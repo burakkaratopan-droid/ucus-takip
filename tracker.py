@@ -208,6 +208,7 @@ def fetch_browser(dest, dep, ret, attempts=2):
                 more.first.click()
                 page.wait_for_timeout(2500)
             texts = page.locator("li").all_inner_texts()
+            _BROWSER["texts"] = texts
             options = [o for o in (parse_result_text(t, CONFIG["origin"], out_to) for t in texts if "₺" in t) if o]
             if options:
                 options.sort(key=lambda x: x["price"])
