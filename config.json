@@ -24,6 +24,10 @@
     {
       "code": "NRT-KIX",
       "name": "Narita gidiş, Kansai dönüş"
+    },
+    {
+      "code": "NRT-HND",
+      "name": "Narita gidiş, Haneda dönüş"
     }
   ],
   "currency": "TRY",
