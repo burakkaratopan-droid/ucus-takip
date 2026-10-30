@@ -46,13 +46,15 @@ def combinations():
 
 
 def build_query(dest, dep, ret, max_stops, safe=False):
-    o, d = CONFIG["origin"], dest
+    # "NRT-KIX" gibi kodlar açık çene rotasıdır: NRT'ye gidiş, KIX'ten dönüş (çoklu şehir araması).
+    o = CONFIG["origin"]
+    out_to, back_from = dest.split("-") if "-" in dest else (dest, dest)
     return create_query(
         flights=[
-            FlightQuery(date=dep.isoformat(), from_airport=o, to_airport=d),
-            FlightQuery(date=ret.isoformat(), from_airport=d, to_airport=o),
+            FlightQuery(date=dep.isoformat(), from_airport=o, to_airport=out_to),
+            FlightQuery(date=ret.isoformat(), from_airport=back_from, to_airport=o),
         ],
-        trip="round-trip",
+        trip="round-trip" if out_to == back_from else "multi-city",
         seat="economy",
         passengers=Passengers(adults=CONFIG["adults"]),
         language="tr",

@@ -409,7 +409,7 @@ function renderDetail(){
   el.className = "card on";
   const th = DATA.config.connecting_threshold;
   el.innerHTML = `<button class="close" onclick="select(null)">Kapat</button>
-    <h2>IST ⇄ ${destName(destOf(c))} · ${fmtDw(c.dep)} → ${fmtDw(c.ret)} · ${c.days} gün</h2>
+    <h2>${destOf(c).includes("-") ? `IST → ${destOf(c).split("-")[0]}, ${destOf(c).split("-")[1]} → IST` : `IST ⇄ ${destName(destOf(c))}`} · ${fmtDw(c.dep)} → ${fmtDw(c.ret)} · ${c.days} gün</h2>
     <p class="hint">${DATA.config.holidays.find(h => h.id === c.holiday).name} · son kontrol ${ago(DATA.runs[c.checked])}</p>
     <div style="display:flex;gap:16px;font-size:12px;color:var(--ink2)"><span><span class="dot" style="background:var(--direct)"></span> Aktarmasız</span><span><span class="dot" style="background:var(--conn)"></span> En ucuz tek aktarmalı</span></div>
     ${chart(c)}
