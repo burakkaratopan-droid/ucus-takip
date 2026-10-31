@@ -17,8 +17,8 @@
   "currency": "TRY",
   "adults": 1,
   "max_connecting_hours": 24,
-  "min_days": 10,
-  "max_days": 15,
+  "min_days": 9,
+  "max_days": 19,
   "connecting_threshold": 40000,
   "holidays": [
     {
@@ -26,7 +26,54 @@
       "name": "Ramazan Bayramı 2027",
       "first_day": "2027-03-08",
       "last_day": "2027-03-11",
-      "note": "Arife 8 Mart, bayram 9-11 Mart"
+      "note": "Arife 8 Mart, bayram 9-11 Mart",
+      "date_windows": [
+        {
+          "dep": "2027-02-26",
+          "ret_min": "2027-03-12",
+          "ret_max": "2027-03-17"
+        },
+        {
+          "dep": "2027-02-27",
+          "ret_min": "2027-03-12",
+          "ret_max": "2027-03-17"
+        },
+        {
+          "dep": "2027-02-28",
+          "ret_min": "2027-03-12",
+          "ret_max": "2027-03-17"
+        },
+        {
+          "dep": "2027-03-01",
+          "ret_min": "2027-03-12",
+          "ret_max": "2027-03-17"
+        },
+        {
+          "dep": "2027-03-02",
+          "ret_min": "2027-03-12",
+          "ret_max": "2027-03-17"
+        },
+        {
+          "dep": "2027-03-03",
+          "ret_min": "2027-03-12",
+          "ret_max": "2027-03-17"
+        },
+        {
+          "dep": "2027-03-04",
+          "ret_min": "2027-03-16",
+          "ret_max": "2027-03-22"
+        },
+        {
+          "dep": "2027-03-05",
+          "ret_min": "2027-03-16",
+          "ret_max": "2027-03-22"
+        },
+        {
+          "dep": "2027-03-06",
+          "ret_min": "2027-03-16",
+          "ret_max": "2027-03-22"
+        }
+      ]
     }
   ]
 }

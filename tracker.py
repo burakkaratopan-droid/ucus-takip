@@ -31,9 +31,24 @@ def destinations():
 
 
 def combinations():
-    """Bayramın ilk gününden (arife) önce/aynı gün gidip son gününden sonra/aynı gün dönen kombinasyonlar."""
+    """Bayram için taranacak gidiş-dönüş kombinasyonları.
+
+    Bayramda "date_windows" tanımlıysa: her gidiş günü için ret_min..ret_max arasındaki tüm dönüşler.
+    Yoksa eski kural: min_days..max_days süren ve arife-bayram günlerini kapsayan yolculuklar.
+    """
     today = date.today()
     for h in CONFIG["holidays"]:
+        if h.get("date_windows"):
+            for w in h["date_windows"]:
+                dep = date.fromisoformat(w["dep"])
+                ret = date.fromisoformat(w["ret_min"])
+                ret_max = date.fromisoformat(w["ret_max"])
+                while ret <= ret_max:
+                    if dep > today:
+                        for dest in destinations():
+                            yield dest, h["id"], dep, ret, (ret - dep).days
+                    ret += timedelta(days=1)
+            continue
         first = date.fromisoformat(h["first_day"])
         last = date.fromisoformat(h["last_day"])
         for days in range(CONFIG["min_days"], CONFIG["max_days"] + 1):
@@ -469,6 +484,9 @@ def main():
     notify(alerts)
 
     close_browser()
+    # Artık taranmayan (tarih aralığı dışında kalan) kombinasyonları panelden kaldır
+    active = {f"{d}_{dp.isoformat()}_{r.isoformat()}" for d, _, dp, r, _ in combos}
+    data["combos"] = {k: v for k, v in data["combos"].items() if k in active}
     data["updated"] = now
     data["config"] = CONFIG
     data["last_run"] = {
