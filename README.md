@@ -1,6 +1,6 @@
 # İstanbul ⇄ Japonya bayram uçuş takipçisi
 
-IST ⇄ Tokyo Haneda (HND), Tokyo Narita (NRT) ve Osaka Kansai (KIX) gidiş-dönüş fiyatlarını, ayrıca açık çene rotalarını (Haneda/Narita'ya gidiş, başka havalimanından dönüş: HND-NRT, HND-KIX, NRT-KIX, NRT-HND) günde üç kez (TR saatiyle 08:00, 14:00, 20:00) Google Flights'tan çeker.
+İstanbul Havalimanı (IST) ve Sabiha Gökçen (SAW) ⇄ Tokyo Haneda (HND), Tokyo Narita (NRT) ve Osaka Kansai (KIX) gidiş-dönüş fiyatlarını günde üç kez (TR saatiyle 08:00, 14:00, 20:00) Google Flights'tan çeker. Gidiş ve dönüşün her biri en fazla 20 saat olacak şekilde süre sınırı doğrudan aramaya uygulanır (`max_connecting_hours`).
 
 - Ramazan Bayramı'nı **arife dahil tamamen** kapsayan 10–15 günlük tüm kombinasyonlar (2027 için rota başına 63, toplam 441 adet). Kurban Bayramı ayrı repoda takip edilir.
 - Aktarmasız en ucuz fiyat ve en ucuz 3 tek aktarmalı seçenek

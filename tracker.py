@@ -23,6 +23,18 @@ CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 DATA_FILE = ROOT / "docs" / "data.json"
 
 
+def origins():
+    """config.json'daki kalkış havalimanları (eski tek 'origin' ayarı da desteklenir)."""
+    if "origins" in CONFIG:
+        return [o["code"] for o in CONFIG["origins"]]
+    return [CONFIG.get("origin", "IST")]
+
+
+def max_minutes():
+    h = CONFIG.get("max_connecting_hours")
+    return h * 60 if h else None
+
+
 def destinations():
     """config.json'daki varış havalimanı kodları (eski tek 'destination' ayarı da desteklenir)."""
     if "destinations" in CONFIG:
@@ -45,8 +57,9 @@ def combinations():
                 ret_max = date.fromisoformat(w["ret_max"])
                 while ret <= ret_max:
                     if dep > today:
-                        for dest in destinations():
-                            yield dest, h["id"], dep, ret, (ret - dep).days
+                        for orig in origins():
+                            for dest in destinations():
+                                yield orig, dest, h["id"], dep, ret, (ret - dep).days
                     ret += timedelta(days=1)
             continue
         first = date.fromisoformat(h["first_day"])
@@ -56,19 +69,23 @@ def combinations():
             while dep <= first:
                 ret = dep + timedelta(days=days)
                 if dep > today:
-                    for dest in destinations():
-                        yield dest, h["id"], dep, ret, days
+                    for orig in origins():
+                        for dest in destinations():
+                            yield orig, dest, h["id"], dep, ret, days
                 dep += timedelta(days=1)
 
 
-def build_query(dest, dep, ret, max_stops, safe=False):
+def build_query(dest, dep, ret, max_stops, safe=False, origin=None):
     # "NRT-KIX" gibi kodlar açık çene rotasıdır: NRT'ye gidiş, KIX'ten dönüş (çoklu şehir araması).
-    o = CONFIG["origin"]
+    # Süre sınırı (max_connecting_hours) her iki yöne de Google aramasının içinde uygulanır;
+    # böylece dönüş süresini ayrıca doğrulamaya gerek kalmaz.
+    o = origin or origins()[0]
+    mm = max_minutes()
     out_to, back_from = dest.split("-") if "-" in dest else (dest, dest)
     return create_query(
         flights=[
-            FlightQuery(date=dep.isoformat(), from_airport=o, to_airport=out_to),
-            FlightQuery(date=ret.isoformat(), from_airport=back_from, to_airport=o),
+            FlightQuery(date=dep.isoformat(), from_airport=o, to_airport=out_to, max_duration_minutes=mm),
+            FlightQuery(date=ret.isoformat(), from_airport=back_from, to_airport=o, max_duration_minutes=mm),
         ],
         trip="round-trip" if out_to == back_from else "multi-city",
         seat="economy",
@@ -130,8 +147,10 @@ def parse(html):
     return options
 
 
-def fetch(dest, dep, ret, max_stops, safe=False, attempts=3):
-    q = build_query(dest, dep, ret, max_stops, safe)
+def fetch(dest, dep, ret, max_stops, safe=False, attempts=2, origin=None):
+    # Süre filtresi aramada olduğu için uygun uçuş yoksa Google boş döner; bu normal.
+    # O yüzden boş sonuçta sadece bir kez daha denenir (eskiden 3), tarama uzamasın.
+    q = build_query(dest, dep, ret, max_stops, safe, origin)
     err = None
     for i in range(attempts):
         try:
@@ -209,9 +228,9 @@ def parse_result_text(text, origin, out_to):
     }
 
 
-def fetch_browser(dest, dep, ret, attempts=2):
+def fetch_browser(dest, dep, ret, attempts=2, origin=None):
     """Açık çene (çoklu şehir) sorgusunu tarayıcıda açar; sonuçlar tüm seyahatin fiyatıdır."""
-    q = build_query(dest, dep, ret, 1)
+    q = build_query(dest, dep, ret, 1, origin=origin)
     url = q.url()
     out_to = dest.split("-")[0]
     page = _page()
@@ -227,7 +246,7 @@ def fetch_browser(dest, dep, ret, attempts=2):
                 page.wait_for_timeout(2500)
             texts = page.locator("li").all_inner_texts()
             _BROWSER["texts"] = texts
-            options = [o for o in (parse_result_text(t, CONFIG["origin"], out_to) for t in texts if "₺" in t) if o]
+            options = [o for o in (parse_result_text(t, origin or origins()[0], out_to) for t in texts if "₺" in t) if o]
             if options:
                 options.sort(key=lambda x: x["price"])
                 return options, url
@@ -248,7 +267,7 @@ def summarize(direct_opts, conn_opts):
 def short_enough(o):
     """Gidiş yolculuk süresi (aktarma beklemesi dahil) sınırın altında mı? Süre bilinmiyorsa eler."""
     limit = CONFIG.get("max_connecting_hours")
-    return not limit or (o.get("minutes") is not None and o["minutes"] < limit * 60)
+    return not limit or (o.get("minutes") is not None and o["minutes"] <= limit * 60)
 
 
 def load_data():
@@ -261,6 +280,7 @@ def load_data():
         if "dest" not in c:
             c["dest"] = "HND"
             key = f"HND_{key}"
+        c.setdefault("origin", "IST")  # SAW eklenmeden önceki kayıtlar hep IST'ydi
         migrated[key] = c
     data["combos"] = migrated
     return data
@@ -329,7 +349,7 @@ def fetch_return_oneway(dest, ret):
     """Dönüş yönünü tek yön olarak sorgular; sadece süreleri öğrenmek için (fiyatı kullanılmaz)."""
     back_from = dest.split("-")[1] if "-" in dest else dest
     q = create_query(
-        flights=[FlightQuery(date=ret.isoformat(), from_airport=back_from, to_airport=CONFIG["origin"])],
+        flights=[FlightQuery(date=ret.isoformat(), from_airport=back_from, to_airport=origins()[0])],
         trip="one-way", seat="economy", passengers=Passengers(adults=CONFIG["adults"]),
         language="tr", currency=CONFIG["currency"], max_stops=1,
     )
@@ -406,17 +426,22 @@ def main():
     prev_direct_low = min((p[1] for c in data["combos"].values() for p in c["history"] if p[1] is not None),
                           default=None)
 
-    for n, (dest, hid, dep, ret, days) in enumerate(combos, 1):
-        key = f"{dest}_{dep.isoformat()}_{ret.isoformat()}"
+    def combo_key(orig, dest, dep, ret):
+        # IST anahtarları eskisi gibi kalır (fiyat geçmişi korunur); diğer kalkışlar önek alır.
+        base = f"{dest}_{dep.isoformat()}_{ret.isoformat()}"
+        return base if orig == "IST" else f"{orig}-{base}"
+
+    for n, (orig, dest, hid, dep, ret, days) in enumerate(combos, 1):
+        key = combo_key(orig, dest, dep, ret)
         try:
             if "-" in dest:
                 # Açık çene: Google bu sonuçları sayfaya sonradan yüklüyor, gerçek tarayıcıyla okunuyor.
-                opts, conn_url = fetch_browser(dest, dep, ret)
+                opts, conn_url = fetch_browser(dest, dep, ret, origin=orig)
                 direct_opts, conn_opts, direct_url = opts, opts, conn_url
             else:
-                direct_opts, direct_url = fetch(dest, dep, ret, 0)
+                direct_opts, direct_url = fetch(dest, dep, ret, 0, origin=orig)
                 time.sleep(1 + random.random() * 2)
-                conn_opts, conn_url = fetch(dest, dep, ret, 1)
+                conn_opts, conn_url = fetch(dest, dep, ret, 1, origin=orig)
             time.sleep(1 + random.random() * 2)
         except Exception as e:
             failed += 1
@@ -425,7 +450,7 @@ def main():
 
         direct, conn = summarize(direct_opts, conn_opts)
         entry = data["combos"].setdefault(key, {
-            "dest": dest, "holiday": hid, "dep": dep.isoformat(), "ret": ret.isoformat(),
+            "origin": orig, "dest": dest, "holiday": hid, "dep": dep.isoformat(), "ret": ret.isoformat(),
             "days": days, "history": [],
         })
         # Google bazen boş döndürüyor: o zaman son bilinen fiyatı koru, "eski" diye işaretle.
@@ -452,7 +477,7 @@ def main():
         print(f"[{n}/{len(combos)}] {key} aktarmasız={point[1]} aktarmalı={point[2]}"
               + (f" (eski: {', '.join(stale)})" if stale else ""))
 
-    check_returns(data, run_idx)
+    # Dönüş süresi artık aramanın içinde filtreleniyor; ayrı dönüş doğrulama sorgusu yapılmıyor.
 
     # Alarmlar
     alerts = []
@@ -465,8 +490,8 @@ def main():
             entry["alerted_conn"] = price
             o = entry["connecting"][0]
             alerts.append({
-                "title": f"{tl(price)} aktarmalı ({entry['dest']})",
-                "text": f"IST ⇄ {entry['dest']} {entry['dep']} → {entry['ret']} ({entry['days']} gün): {tl(price)}, "
+                "title": f"{tl(price)} aktarmalı ({entry['origin']}⇄{entry['dest']})",
+                "text": f"{entry['origin']} ⇄ {entry['dest']} {entry['dep']} → {entry['ret']} ({entry['days']} gün): {tl(price)}, "
                         f"{', '.join(o['airlines'])} · {', '.join(o['via'])} aktarmalı."
                         f" [Google Flights]({entry['urls']['connecting']})",
             })
@@ -476,8 +501,8 @@ def main():
         price, c = min(lows, key=lambda x: x[0])
         if price <= prev_direct_low - DIRECT_LOW_STEP:
             alerts.append({
-                "title": f"aktarmasız yeni en düşük {tl(price)} ({c['dest']})",
-                "text": f"Aktarmasız şimdiye kadarki en düşük fiyat: IST ⇄ {c['dest']} {c['dep']} → {c['ret']} ({c['days']} gün) "
+                "title": f"aktarmasız yeni en düşük {tl(price)} ({c['origin']}⇄{c['dest']})",
+                "text": f"Aktarmasız şimdiye kadarki en düşük fiyat: {c['origin']} ⇄ {c['dest']} {c['dep']} → {c['ret']} ({c['days']} gün) "
                         f"{tl(price)}, {', '.join(c['direct']['airlines'])} (önceki en düşük {tl(prev_direct_low)}). "
                         f"[Google Flights]({c['urls']['direct']})",
             })
@@ -485,7 +510,7 @@ def main():
 
     close_browser()
     # Artık taranmayan (tarih aralığı dışında kalan) kombinasyonları panelden kaldır
-    active = {f"{d}_{dp.isoformat()}_{r.isoformat()}" for d, _, dp, r, _ in combos}
+    active = {combo_key(o, d, dp, r) for o, d, _, dp, r, _ in combos}
     data["combos"] = {k: v for k, v in data["combos"].items() if k in active}
     data["updated"] = now
     data["config"] = CONFIG

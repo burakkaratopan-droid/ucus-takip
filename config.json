@@ -1,5 +1,14 @@
 {
-  "origin": "IST",
+  "origins": [
+    {
+      "code": "IST",
+      "name": "İstanbul Havalimanı"
+    },
+    {
+      "code": "SAW",
+      "name": "Sabiha Gökçen"
+    }
+  ],
   "destinations": [
     {
       "code": "HND",
@@ -16,7 +25,7 @@
   ],
   "currency": "TRY",
   "adults": 1,
-  "max_connecting_hours": 24,
+  "max_connecting_hours": 20,
   "min_days": 9,
   "max_days": 19,
   "connecting_threshold": 40000,

@@ -110,13 +110,14 @@ footer{font-size:12px;color:var(--ink3);margin-top:32px;line-height:1.6}
 <body>
 <div class="wrap">
   <header>
-    <h1>İstanbul ⇄ Japonya<small id="sub">Tokyo Haneda, Tokyo Narita, Osaka Kansai · bayramları kapsayan 10–15 günlük gidiş-dönüşler · tek kişi, ekonomi</small></h1>
+    <h1>İstanbul ⇄ Japonya<small id="sub">IST/SAW ⇄ Tokyo Haneda, Tokyo Narita, Osaka Kansai · Ramazan Bayramı gidiş-dönüşleri · her yön en fazla 20 saat · tek kişi, ekonomi</small></h1>
     <div class="meta" id="meta">Yükleniyor…</div>
   </header>
 
   <div class="cards" id="cards"></div>
 
   <div class="controls">
+    <div class="seg" id="f-orig" role="group" aria-label="Kalkış"></div>
     <div class="seg" id="f-dest" role="group" aria-label="Havalimanı"></div>
     <div class="seg" id="f-holiday" role="group" aria-label="Bayram"></div>
     <div class="seg" id="f-kind" role="group" aria-label="Uçuş tipi">
@@ -187,8 +188,9 @@ const ago = iso => {
 };
 const store = { get(k){ try { return localStorage.getItem(k); } catch { return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
 
-let DATA, state = { dest: "all", holiday: "all", kind: "direct", selected: null, showAll: false };
+let DATA, state = { orig: "all", dest: "all", holiday: "all", kind: "direct", selected: null, showAll: false };
 const destOf = c => c.dest || "HND";
+const origOf = c => c.origin || "IST";
 const destName = code => ((DATA.config.destinations || []).find(x => x.code === code) || { name: code }).name;
 let LIST = { sort: "d-asc", maxd: "", maxc: "", days: "" };
 try { Object.assign(LIST, JSON.parse(store.get("list") || "{}")); } catch {}
@@ -233,6 +235,7 @@ function chgHtml(ch){
 function combos(){
   return Object.entries(DATA.combos)
     .map(([k, c]) => ({ key: k, ...c }))
+    .filter(c => state.orig === "all" || origOf(c) === state.orig)
     .filter(c => state.dest === "all" || destOf(c) === state.dest)
     .filter(c => DATA.config.holidays.some(h => h.id === c.holiday))
     .filter(c => state.holiday === "all" || c.holiday === state.holiday);
@@ -254,9 +257,9 @@ function renderCards(){
     `<div class="card" ${key ? `style="cursor:pointer" onclick="select('${key}')"` : ""}><div class="lbl"><span class="dot" style="background:${dot}"></span>${lbl}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   document.getElementById("cards").innerHTML =
     card("var(--direct)", "En ucuz aktarmasız", bd ? TL(bd.direct.price) : "—",
-      bd ? `${destName(destOf(bd))} · ${fmtD(bd.dep)} – ${fmtD(bd.ret)} · ${bd.days} gün ${chgHtml(change(bd, "direct"))}` : "Bulunamadı", bd && bd.key) +
+      bd ? `${origOf(bd)} ⇄ ${destName(destOf(bd))} · ${fmtD(bd.dep)} – ${fmtD(bd.ret)} · ${bd.days} gün ${chgHtml(change(bd, "direct"))}` : "Bulunamadı", bd && bd.key) +
     card("var(--conn)", "En ucuz tek aktarmalı", bc ? TL(bc.connecting[0].price) : "—",
-      bc ? `${destName(destOf(bc))} · ${fmtD(bc.dep)} – ${fmtD(bc.ret)} · ${bc.connecting[0].airlines.join(", ")} · ${bc.connecting[0].via.join(", ")}` : "Bulunamadı", bc && bc.key) +
+      bc ? `${origOf(bc)} ⇄ ${destName(destOf(bc))} · ${fmtD(bc.dep)} – ${fmtD(bc.ret)} · ${bc.connecting[0].airlines.join(", ")} · ${bc.connecting[0].via.join(", ")}` : "Bulunamadı", bc && bc.key) +
     card("var(--good)", `${th.toLocaleString("tr-TR")} TL altı aktarmalı`, under.length,
       under.length ? `${under.length} kombinasyonda var` : "Henüz yok, takipteyiz", under[0] && under[0].key);
 }
@@ -284,7 +287,7 @@ function renderHeat(){
       const p = priceOf(c, state.kind);
       if (!p) return `<td class="na" onclick="select('${c.key}')" title="Sonuç yok">–</td>`;
       const old = isStale(c, state.kind);
-      return `<td class="${old ? "old" : ""}" style="background:${color(p, min, max)}" onclick="select('${c.key}')" title="${destName(destOf(c))} · ${fmtD(c.dep)} – ${fmtD(c.ret)} · ${TL(p)}${old ? " · son bilinen fiyat" : ""}">${Math.round(p / 1000)}k</td>`;
+      return `<td class="${old ? "old" : ""}" style="background:${color(p, min, max)}" onclick="select('${c.key}')" title="${origOf(c)} ⇄ ${destName(destOf(c))} · ${fmtD(c.dep)} – ${fmtD(c.ret)} · ${TL(p)}${old ? " · son bilinen fiyat" : ""}">${Math.round(p / 1000)}k</td>`;
     }).join("") + `</tr>`).join("");
     return `<div class="card"><div style="font-weight:600;margin-bottom:2px">${h.name}</div><div class="hint" style="margin-bottom:8px">${h.note}</div>
       <table><thead><tr><th class="row">Gidiş</th>${lens.map(n => `<th>${n}g</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -342,7 +345,7 @@ function renderList(){
     shown.map(c => {
       const cn = c.connecting && c.connecting[0];
       return `<div class="row ${state.selected === c.key ? "sel" : ""}" onclick="select('${c.key}')">
-        <span><div class="d1">${fmtD(c.dep)} – ${fmtD(c.ret)}</div><div class="d2">${destOf(c)} · ${c.days} gün · ${c.holiday.startsWith("ramazan") ? "Ramazan" : "Kurban"}</div></span>
+        <span><div class="d1">${fmtD(c.dep)} – ${fmtD(c.ret)}</div><div class="d2">${origOf(c)} ⇄ ${destOf(c)} · ${c.days} gün · ${c.holiday.startsWith("ramazan") ? "Ramazan" : "Kurban"}</div></span>
         <span><span class="price">${TL(c.direct && c.direct.price)}</span>${chgHtml(change(c, "direct"))}${badges(c, "direct")}</span>
         <span><span class="price">${TL(cn && cn.price)}</span>${chgHtml(change(c, "conn"))}${cn && cn.price <= th ? `<span class="tag">40k altı</span>` : ""}${badges(c, "conn")}
           <div class="d2">${cn ? cn.airlines.join(", ") + " · " + cn.via.join(", ") : ""}</div>${cn && cn.minutes ? `<div class="d2">${cn.ret_minutes ? "Gidiş " : ""}${hm(cn.minutes)}${cn.ret_minutes ? ` · Dönüş ${hm(cn.ret_minutes)}` : ""}</div>` : ""}</span>
@@ -411,7 +414,7 @@ function renderDetail(){
   el.className = "card on";
   const th = DATA.config.connecting_threshold;
   el.innerHTML = `<button class="close" onclick="select(null)">Kapat</button>
-    <h2>${destOf(c).includes("-") ? `IST → ${destOf(c).split("-")[0]}, ${destOf(c).split("-")[1]} → IST` : `IST ⇄ ${destName(destOf(c))}`} · ${fmtDw(c.dep)} → ${fmtDw(c.ret)} · ${c.days} gün</h2>
+    <h2>${destOf(c).includes("-") ? `${origOf(c)} → ${destOf(c).split("-")[0]}, ${destOf(c).split("-")[1]} → ${origOf(c)}` : `${origOf(c)} ⇄ ${destName(destOf(c))}`} · ${fmtDw(c.dep)} → ${fmtDw(c.ret)} · ${c.days} gün</h2>
     <p class="hint">${DATA.config.holidays.find(h => h.id === c.holiday).name} · son kontrol ${ago(DATA.runs[c.checked])}</p>
     <div style="display:flex;gap:16px;font-size:12px;color:var(--ink2)"><span><span class="dot" style="background:var(--direct)"></span> Aktarmasız</span><span><span class="dot" style="background:var(--conn)"></span> En ucuz tek aktarmalı</span></div>
     ${chart(c)}
@@ -453,6 +456,12 @@ function setupFilters(){
   de.innerHTML = ds.map(([v, n]) => `<button data-v="${v}" aria-pressed="${v === state.dest}" title="${n}">${v === "all" ? n : v}</button>`).join("");
   de.onclick = e => { const v = e.target.dataset.v; if (!v) return; state.dest = v; state.showAll = false;
     de.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v)); renderAll(); };
+  const os = [["all", "Tümü"], ...(DATA.config.origins || [{ code: "IST", name: "İstanbul Havalimanı" }]).map(x => [x.code, x.name])];
+  const oe = document.getElementById("f-orig");
+  oe.innerHTML = os.length > 2 ? os.map(([v, n]) => `<button data-v="${v}" aria-pressed="${v === state.orig}" title="${n}">${v === "all" ? "IST+SAW" : v}</button>`).join("") : "";
+  oe.style.display = os.length > 2 ? "" : "none";
+  oe.onclick = e => { const v = e.target.dataset.v; if (!v) return; state.orig = v; state.showAll = false;
+    oe.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v)); renderAll(); };
   const k = document.getElementById("f-kind");
   k.onclick = e => { const v = e.target.dataset.v; if (!v) return; state.kind = v; k.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v));
     LIST.sort = v === "direct" ? "d-asc" : "c-asc"; document.getElementById("f-sort").value = LIST.sort; saveList(); renderAll(); };
